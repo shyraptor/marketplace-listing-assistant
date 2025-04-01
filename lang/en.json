@@ -1,6 +1,6 @@
 {
     "_language_name": "English",
-    "app_title": "Vinted Seller Studio",
+    "app_title": "Listing Assistant",
     "colors_tab": "🎨 Colors",
     "existing_color_mappings": "Existing Color Mappings:",
     "color_label": "Color:",
@@ -57,7 +57,7 @@
     "units": "Units:",
     "use_solid_bg": "Use solid background color",
     "output_prefix": "Output Filename Prefix:",
-    "settings_editor_title": "Vinted Style Studio - Settings",
+    "settings_editor_title": "Listing Assistant - Settings",
     "adjustments_label": "Adjust Selected Image",
     "vertical_offset_factor": "Vertical Position:",
     "horizontal_offset_factor": "Horizontal Position:",

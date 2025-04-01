@@ -20,7 +20,7 @@ CONFIG_FILE = "config.json"
 LANG_DIR = "lang"
 BG_DIR = "bg"
 DEFAULT_LANG_CODE = "en"
-APP_NAME = "Vinted Seller Studio"
+APP_NAME = "Listing Assistant"
 
 # Default language keys (used only if critical loading fails)
 DEFAULT_LANG_KEYS = {
@@ -96,7 +96,7 @@ class Backend:
         """Applies settings loaded from config_data."""
         self.use_solid_bg = self.config_data.get("use_solid_bg", False)
         self.units = self.config_data.get("units", "cm")
-        self.output_prefix = self.config_data.get("output_prefix", "vinted_")
+        self.output_prefix = self.config_data.get("output_prefix", "mla_")
         
         # Canvas dimensions
         self.canvas_width_v = self.config_data.get("canvas_width_v", DEFAULT_CANVAS_WIDTH_V)
@@ -514,7 +514,7 @@ class Backend:
             tuple: (success, message, total_images_loaded, load_errors)
         """
         self.cleanup_temp_dir()
-        self.temp_extract_dir = tempfile.mkdtemp(prefix="vinted_unzip_")
+        self.temp_extract_dir = tempfile.mkdtemp(prefix="mla_unzip_")
         
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:

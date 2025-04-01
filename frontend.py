@@ -13,10 +13,10 @@ from backend import Backend, ProjectData, APP_NAME
 
 class App(ttk.Window):
     """
-    Main application window for Vinted Seller Studio.
+    Main application window for Marketplace Listing Assistant.
     
-    Provides a GUI for managing clothing listings, processing images,
-    generating descriptions, and preparing content for the Vinted marketplace.
+    Provides a GUI for managing product listings, processing images,
+    generating descriptions, and preparing content for marketplaces.
     """
     def __init__(self, themename="solar"):
         """Initialize the application with the specified theme."""
@@ -1878,7 +1878,7 @@ class App(ttk.Window):
             return
             
         self.editor_window = tk.Toplevel(self)
-        self.editor_window.title(self.lang.get("settings_editor_title", "Vinted Style Studio - Settings"))
+        self.editor_window.title(self.lang.get("settings_editor_title", "Listing Assistant - Settings"))
         self.editor_window.geometry("850x700")
         self.editor_window.transient(self)
         
@@ -3170,7 +3170,7 @@ class App(ttk.Window):
         
         # Get other settings
         current_config["units"] = self.editor_units_entry.get().strip() or "cm"
-        current_config["output_prefix"] = self.editor_output_prefix_entry.get().strip() or "vinted_"
+        current_config["output_prefix"] = self.editor_output_prefix_entry.get().strip() or "mla_"
         
         # Save canvas dimensions
         try:

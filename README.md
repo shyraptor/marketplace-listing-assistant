@@ -1,14 +1,17 @@
-# Vinted Seller Studio
+# Marketplace Listing Assistant
 
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
 
-**A desktop application for Vinted sellers to prepare professional product listings with background replacement, tag management, and description generation.**
+**Listing Assistant is a desktop application designed to help sellers create product listings.**  
+Originally developed with Vinted sellers in mind, the app has grown to be flexible enough for any online marketplace.
 
 ## 🌟 Overview
 
-Vinted Seller Studio helps sellers create professional-looking product listings by automating background replacement, organizing measurements, generating hashtags, and formatting descriptions for optimal marketplace visibility.
+Listing Assistant streamlines the process of preparing online product listings. It automates background replacement, organizes measurements, generates hashtags, and formats descriptions for improved visibility.
 
-*This has been mostly "vibe coded" with the assistance of AI.*
+*This project was initially tailored for Vinted, but its features are applicable to various selling platforms.*
+
+*The app has been mostly "vibe coded" with the assistance of AI.*
 
 ![App Screenshot](screenshot1.png)
 
@@ -42,7 +45,7 @@ Vinted Seller Studio helps sellers create professional-looking product listings 
 ## ⚙️ Installation
 
 ### Option 1: Executable (.exe)
-1. Download the latest release from the [Releases page](https://github.com/shyraptor/vinted-seller-studio/releases)
+1. Download the latest release from the [Releases page](https://github.com/shyraptor/marketplace-listing-assistant/releases)
 2. Extract the zip file
 3. Ensure the following files/folders are in the same directory as the .exe:
    - `config.json`
@@ -50,14 +53,14 @@ Vinted Seller Studio helps sellers create professional-looking product listings 
    - `hashtag_mapping.json`
    - `lang` folder
    - `bg` folder 
-4. Run `vinted_seller_studio.exe`
+4. Run `marketplace_listing_assistant.exe`
 
 > **⚠️ Important Note:** The application may take longer to start the first time you run it. This is normal behavior as it needs to initialize resources and prepare the environment. Subsequent launches will be significantly faster.
 
 ### Option 2: From Source
 1. Clone the repository:
    ```
-   git clone https://github.com/shyraptor/vinted-seller-studio.git
+   git clone https://github.com/shyraptor/marketplace-listing-assistant.git
    ```
 
 2. Install dependencies:
