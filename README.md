@@ -1,6 +1,5 @@
 # Vinted Seller Studio
 
-![Vinted Seller Studio](https://img.shields.io/badge/Vinted-Seller%20Studio-ff5959)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
 
 **A desktop application for Vinted sellers to prepare professional product listings with background replacement, tag management, and description generation.**
