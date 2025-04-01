@@ -1,6 +1,7 @@
 # Marketplace Listing Assistant
 
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-donate-orange)](https://buymeacoffee.com/shyraptor))
 
 **Listing Assistant is a desktop application designed to help sellers create product listings.**  
 Originally developed with Vinted sellers in mind, the app has grown to be flexible enough for any online marketplace.
