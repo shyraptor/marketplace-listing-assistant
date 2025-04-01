@@ -3026,7 +3026,7 @@ class App(ttk.Window):
             parent=self.editor_window
         ):
             # Call backend to remove the file
-            success, error_msg = self.backend.remove_background(full_path)
+            success, error_msg = self.backend.remove_bg_file(full_path)
             
             if success:
                 self._editor_refresh_bg_listbox()

@@ -127,9 +127,15 @@ class Backend:
                 self.initialization_warning = f"Cannot create backgrounds directory: {bg_dir}"
     
     def _get_bg_folder_path(self):
-        """Returns the path to the background folder."""
-        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(base_path, BG_DIR)
+        if getattr(sys, 'frozen', False):
+            # When frozen, use the folder next to the executable
+            base_path = os.path.dirname(sys.executable)
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        bg_path = os.path.join(base_path, "bg")
+        if not os.path.isdir(bg_path):
+            os.makedirs(bg_path, exist_ok=True)
+        return bg_path
 
     # ====================== LANGUAGE HANDLING ======================
     def get_available_languages(self):
@@ -429,7 +435,7 @@ class Backend:
         files = self._load_backgrounds_from_folder(folder_path)
         return self.add_background_files(files)
 
-    def remove_background(self, bg_path):
+    def remove_bg_file(self, bg_path):
         """
         Removes a background file from the bg directory.
         
