@@ -1,0 +1,396 @@
+{
+  "red color": [
+      "red",
+      "ruby",
+      "crimson",
+      "scarlet",
+      "červená",
+      "cervena",
+      "rudá",
+      "ruda"
+  ],
+  "blue color": [
+      "blue",
+      "navy",
+      "azure",
+      "modrá",
+      "modra"
+  ],
+  "green color": [
+      "green",
+      "emerald",
+      "olive",
+      "mint",
+      "zelená",
+      "zelena"
+  ],
+  "black color": [
+      "black",
+      "jet",
+      "ebony",
+      "černá",
+      "cerna"
+  ],
+  "white color": [
+      "white",
+      "ivory",
+      "cream",
+      "bílá",
+      "bila"
+  ],
+  "gray color": [
+      "gray",
+      "grey",
+      "silver",
+      "šedá",
+      "seda"
+  ],
+  "yellow color": [
+      "yellow",
+      "gold",
+      "amber",
+      "žlutá",
+      "zluta"
+  ],
+  "orange color": [
+      "orange",
+      "tangerine",
+      "coral",
+      "oranžová",
+      "oranzova"
+  ],
+  "purple color": [
+      "purple",
+      "violet",
+      "lavender",
+      "mauve",
+      "fialová",
+      "fialova"
+  ],
+  "pink color": [
+      "pink",
+      "rose",
+      "magenta",
+      "fuschia",
+      "růžová",
+      "ruzova"
+  ],
+  "brown color": [
+      "brown",
+      "tan",
+      "chocolate",
+      "sepia",
+      "hnědá",
+      "hneda"
+  ],
+  "turquoise color": [
+      "turquoise",
+      "teal",
+      "aqua",
+      "cyan",
+      "tyrkysová",
+      "tyrkysova"
+  ],
+  "vintage": [
+    "vintage",
+    "retro",
+    "classic",
+    "antique",
+    "nostalgia",
+    "timeless",
+    "nostalgic"
+  ],
+  "shirt": [
+    "shirt",
+    "buttonup",
+    "ko\u0161ile",
+    "kosile",
+    "collar",
+    "sleeves",
+    "buttons",
+    "dressshirt",
+    "casualshirt",
+    "formalshirt"
+  ],
+  "pants": [
+    "pants",
+    "trousers",
+    "kalhoty",
+    "chinos",
+    "slacks"
+  ],
+  "y2k": [
+    "y2k",
+    "2000s",
+    "00s",
+    "2k",
+    "#streetwear",
+    "aesthetic",
+    "millennial",
+    "futuristic",
+    "cyber"
+  ],
+  "jeans": [
+    "jeans",
+    "denim",
+    "dziny",
+    "d\u017e\u00edny",
+    "momjeans",
+    "skinny",
+    "straightcut",
+    "bootcut"
+  ],
+  "printed": [
+    "print",
+    "printed",
+    "potisk",
+    "obrazek",
+    "picture",
+    "obr\u00e1zek",
+    "graphic",
+    "graphics",
+    "stamped",
+    "screenprint"
+  ],
+  "top": [
+    "top",
+    "blouse",
+    "camisole",
+    "crop"
+  ],
+  "t-shirt": [
+    "tee",
+    "tshirt",
+    "t",
+    "tri\u010dko",
+    "tricko",
+    "triko",
+    "shortsleeve",
+    "basictee",
+    "casualtee",
+    "roundneck"
+  ],
+  "cotton": [
+    "bavlna",
+    "cotton",
+    "natural",
+    "soft",
+    "organic"
+  ],
+  "comedy": [
+    "comedy",
+    "funny",
+    "parody",
+    "meme",
+    "vtip",
+    "vtipne",
+    "vtipny",
+    "comical",
+    "komicke",
+    "komicky",
+    "humor",
+    "silly"
+  ],
+  "text": [
+    "text",
+    "napis",
+    "writing",
+    "lettering"
+  ],
+  "base": [
+    "swag",
+    "swaggy",
+    "fashion",
+    "style",
+    "moda",
+    "styl",
+    "trendy",
+    "hip"
+  ],
+  "elegant": [
+    "elegant",
+    "glamour",
+    "aesthetic",
+    "flashy",
+    "classy",
+    "chic"
+  ],
+  "baggy": [
+    "baggy",
+    "big",
+    "oversize",
+    "oversized",
+    "loose"
+  ],
+  "skate": [
+    "skate",
+    "skater",
+    "skateboard",
+    "sk8",
+    "skaterstyle",
+    "oldschool",
+    "streetwear",
+    "kickflip",
+    "halfpipe"
+  ],
+  "sport": [
+    "sport",
+    "sports",
+    "sporty",
+    "sportovni",
+    "active",
+    "athletic"
+  ],
+  "band": [
+    "music",
+    "hudba",
+    "muzika",
+    "band",
+    "bandtee",
+    "musician",
+    "concert"
+  ],
+  "game": [
+    "game",
+    "gamedev",
+    "videogame",
+    "video",
+    "hra",
+    "herni",
+    "hry",
+    "games",
+    "gamer"
+  ],
+  "cars": [
+    "cars",
+    "car",
+    "race",
+    "racing",
+    "wheels",
+    "auto",
+    "auta",
+    "z\u00e1vod\u011bn\u00ed",
+    "racer",
+    "motor",
+    "motorsport",
+    "moto",
+    "engine"
+  ],
+  "coat": [
+    "warm",
+    "winter",
+    "coat",
+    "zima",
+    "zimni",
+    "kabat",
+    "teple",
+    "teply",
+    "kozich",
+    "fur",
+    "cold",
+    "outerwear"
+  ],
+  "pattern": [
+    "pattern",
+    "patterns",
+    "motif",
+    "motive",
+    "motives"
+  ],
+  "tech": [
+    "tech",
+    "technology",
+    "developer",
+    "software",
+    "programming"
+  ],
+  "nerd": [
+    "nerd",
+    "nerdy",
+    "geek",
+    "geeky",
+    "smart"
+  ],
+  "beach": [
+    "hawaii",
+    "jamaica",
+    "mallorca",
+    "greece",
+    "summer",
+    "breeze",
+    "palms",
+    "palm",
+    "beach",
+    "sun",
+    "sunny",
+    "vacation"
+  ],
+  "sweatshirt": [
+    "sweatshirt",
+    "sweather",
+    "jumper",
+    "sleeves",
+    "fleece"
+  ],
+  "crewneck": [
+    "crewneck",
+    "roundcollar"
+  ],
+  "affliction style": [
+    "affliction",
+    "edgy",
+    "rockstyle",
+    "tattoo",
+    "biker",
+    "skull",
+    "rebellious"
+  ],
+  "checked": [
+    "checks",
+    "check",
+    "checkers",
+    "checked",
+    "checkered",
+    "kostkovane",
+    "kostkovana",
+    "kostky"
+  ],
+  "polo": [
+    "polo",
+    "poloshirt"
+  ],
+  "bag": [
+    "bag",
+    "bags",
+    "handbag",
+    "ta\u0161ka",
+    "kabelka",
+    "ledvinka",
+    "fanny",
+    "fannypack",
+    "pack",
+    "sack"
+  ],
+  "military": [
+    "military",
+    "vojenske",
+    "vojensky",
+    "skautske",
+    "skautsky",
+    "ryby",
+    "rybarske",
+    "rybarsky",
+    "rybareni",
+    "rybarska",
+    "skautsky",
+    "scouting",
+    "scout",
+    "fish",
+    "fishing",
+    "army",
+    "armada",
+    "armadni",
+    "maskace",
+    "maskovane"
+  ]
+}

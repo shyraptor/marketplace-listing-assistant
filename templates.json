@@ -1,0 +1,90 @@
+{
+  "T-shirt": {
+    "fields": [
+      "Length",
+      "Width (chest)",
+      "Width (shoulders)",
+      "Sleeve length (outside)",
+      "Sleeve length (inside)"
+    ],
+    "default_tags": [
+      "base",
+      "t-shirt",
+      "top"
+    ]
+  },
+  "Pants": {
+    "fields": [
+      "Length",
+      "Waist",
+      "Front rise",
+      "Thigh"
+    ],
+    "default_tags": [
+      "base",
+      "pants"
+    ]
+  },
+  "Coat": {
+    "fields": [
+      "Length",
+      "Width (chest)",
+      "Width (shoulders)",
+      "Sleeve length (outside)",
+      "Sleeve length (inside)"
+    ],
+    "default_tags": [
+      "base",
+      "coat",
+      "top"
+    ]
+  },
+  "Polo": {
+    "fields": [
+      "Length",
+      "Width (chest)",
+      "Width (shoulders)",
+      "Sleeve length (outside)",
+      "Sleeve length (inside)"
+    ],
+    "default_tags": [
+      "base",
+      "polo",
+      "shirt",
+      "t-shirt",
+      "top"
+    ]
+  },
+  "Shirt": {
+    "fields": [
+      "Length",
+      "Width (chest)",
+      "Width (shoulders)",
+      "Sleeve length (outside)",
+      "Sleeve length (inside)"
+    ],
+    "default_tags": [
+      "base",
+      "shirt",
+      "t-shirt",
+      "top"
+    ]
+  },
+  "Bag": {
+    "fields": [],
+    "default_tags": [
+      "bag"
+    ]
+  },
+  "Jacket": {
+    "fields": [
+      "length",
+      "width"
+    ],
+    "default_tags": [
+      "base",
+      "coat",
+      "cotton"
+    ]
+  }
+}
