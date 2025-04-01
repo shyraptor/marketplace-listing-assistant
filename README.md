@@ -48,6 +48,8 @@ Vinted Seller Studio helps sellers create professional-looking product listings 
    - `bg` folder 
 4. Run `vinted_seller_studio.exe`
 
+> **⚠️ Important Note:** The application may take longer to start the first time you run it. This is normal behavior as it needs to initialize resources and prepare the environment. Subsequent launches will be significantly faster.
+
 ### Option 2: From Source
 1. Clone the repository:
    ```
