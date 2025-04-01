@@ -9,6 +9,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('icon.ico', '.'),  # Include icon file in the root directory
+        ('bg/*', 'bg')
     ],
     hiddenimports=[
         'backend',         # Ensure backend module is included
