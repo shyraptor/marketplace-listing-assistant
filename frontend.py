@@ -1882,6 +1882,15 @@ class App(ttk.Window):
         self.editor_window.geometry("850x700")
         self.editor_window.transient(self)
         
+        try:
+            if sys.platform.startswith('win'):
+                base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+                icon_path = os.path.join(base_path, "icon.ico")
+                if os.path.exists(icon_path):
+                    self.editor_window.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"Settings icon error: {e}")
+        
         # Create notebook with tabs
         notebook = ttk.Notebook(self.editor_window)
         notebook.bind("<<NotebookTabChanged>>", self._on_editor_notebook_tab_changed)
