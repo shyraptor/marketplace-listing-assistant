@@ -1,5 +1,6 @@
 # backend.py
 import os
+import sys
 import json
 import datetime
 import math
@@ -127,7 +128,8 @@ class Backend:
     
     def _get_bg_folder_path(self):
         """Returns the path to the background folder."""
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), BG_DIR)
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_path, BG_DIR)
 
     # ====================== LANGUAGE HANDLING ======================
     def get_available_languages(self):

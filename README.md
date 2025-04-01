@@ -10,6 +10,8 @@ Vinted Seller Studio helps sellers create professional-looking product listings 
 
 *This has been mostly "vibe coded" with the assistance of AI.*
 
+![App Screenshot](screenshot1.png)
+
 ## ✨ Features
 
 - **Background Removal** - Automatically remove backgrounds from clothing photos
@@ -22,6 +24,8 @@ Vinted Seller Studio helps sellers create professional-looking product listings 
 - **Multi-language Support** - Easily switch between languages
 - **Image Adjustments** - Fine-tune image positioning, size, and orientation
 - **Batch Processing** - Process multiple images at once
+
+![Description Screenshot](screenshot2.png)
 
 ## 📋 Requirements
 *Note: This application was developed and tested on Windows 10 64-bit.*
