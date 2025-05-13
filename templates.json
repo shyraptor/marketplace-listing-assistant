@@ -4,8 +4,8 @@
       "Length",
       "Width (chest)",
       "Width (shoulders)",
-      "Sleeve length (outside)",
-      "Sleeve length (inside)"
+      "Sleeve length (outer side)",
+      "Sleeve length (inner side)"
     ],
     "default_tags": [
       "base",
@@ -60,8 +60,8 @@
       "Length",
       "Width (chest)",
       "Width (shoulders)",
-      "Sleeve length (outside)",
-      "Sleeve length (inside)"
+      "Sleeve length (outer side)",
+      "Sleeve length (inner side)"
     ],
     "default_tags": [
       "base",
