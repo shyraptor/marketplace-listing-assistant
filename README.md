@@ -1,4 +1,4 @@
-# Marketplace Listing Assistant
+# Marketplace Listing Assistant [Proof of Concept]
 
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-donate-orange)](https://buymeacoffee.com/shyraptor)
