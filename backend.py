@@ -86,13 +86,13 @@ class Backend:
             self.hashtag_mapping = self._load_hashtag_mapping_config()
             self.backgrounds = []  # Will be populated by scan_backgrounds_folder()
             self._apply_settings_from_config()
-            self.scan_backgrounds_folder()  # Scan for background images
+            self.scan_backgrounds_folder()
             self.projects = []
             self.current_project_index = -1
             self.temp_extract_dir = None
             self._dominant_color_cache = {}  # Cache for dominant colors
         else:
-            print("Backend initialization incomplete due to language loading failure.")
+            pass
 
     def _apply_settings_from_config(self):
         """Applies settings loaded from config_data."""
@@ -100,33 +100,39 @@ class Backend:
         self.units = self.config_data.get("units", "cm")
         self.output_prefix = self.config_data.get("output_prefix", "mla_")
         
-        # Canvas dimensions
         self.canvas_width_v = self.config_data.get("canvas_width_v", DEFAULT_CANVAS_WIDTH_V)
         self.canvas_height_v = self.config_data.get("canvas_height_v", DEFAULT_CANVAS_HEIGHT_V)
         self.canvas_width_h = self.config_data.get("canvas_width_h", DEFAULT_CANVAS_WIDTH_H)
         self.canvas_height_h = self.config_data.get("canvas_height_h", DEFAULT_CANVAS_HEIGHT_H)
 
     # ====================== DIRECTORY MANAGEMENT ======================
+    def _ensure_directory(self, directory_path, error_type="error", error_message_prefix="Cannot create directory"):
+        """
+        Generic method to ensure a directory exists.
+        
+        Args:
+            directory_path: Path to the directory
+            error_type: Type of error to set ("error" or "warning")
+            error_message_prefix: Prefix for the error message
+        """
+        if not os.path.isdir(directory_path):
+            try:
+                os.makedirs(directory_path, exist_ok=True)
+            except OSError:
+                message = f"{error_message_prefix}: {directory_path}"
+                if error_type == "error":
+                    self.initialization_error = message
+                else:
+                    self.initialization_warning = message
+    
     def _ensure_lang_dir(self):
         """Ensures the language directory exists."""
-        if not os.path.isdir(LANG_DIR):
-            try:
-                os.makedirs(LANG_DIR)
-                print(f"Created language directory: {LANG_DIR}")
-            except OSError as e:
-                print(f"Error creating language directory '{LANG_DIR}': {e}")
-                self.initialization_error = f"Cannot create language directory: {LANG_DIR}"
+        self._ensure_directory(LANG_DIR, "error", "Cannot create language directory")
     
     def _ensure_bg_dir(self):
         """Ensures the backgrounds directory exists."""
         bg_dir = self._get_bg_folder_path()
-        if not os.path.isdir(bg_dir):
-            try:
-                os.makedirs(bg_dir)
-                print(f"Created backgrounds directory: {bg_dir}")
-            except OSError as e:
-                print(f"Error creating backgrounds directory '{bg_dir}': {e}")
-                self.initialization_warning = f"Cannot create backgrounds directory: {bg_dir}"
+        self._ensure_directory(bg_dir, "warning", "Cannot create backgrounds directory")
     
     def _get_bg_folder_path(self):
         if getattr(sys, 'frozen', False):
@@ -164,7 +170,7 @@ class Backend:
                     pass
                 codes[lang_code] = display_name
         except Exception as e:
-            print(f"Error scanning language directory: {e}")
+            pass
 
         if DEFAULT_LANG_CODE not in codes:
             codes[DEFAULT_LANG_CODE] = "English (Default)"
@@ -187,10 +193,8 @@ class Backend:
                 with open(filepath, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                print(f"Error loading language file '{filepath}': {e}")
                 return None
         else:
-            print(f"Language file not found: '{filepath}'")
             return None
 
     def _load_language_config(self, lang_code):
@@ -212,7 +216,6 @@ class Backend:
                 self.initialization_error = DEFAULT_LANG_KEYS.get("lang_default_load_error", "Critical language load error.").format(lang_code=DEFAULT_LANG_CODE)
                 return None
             else:
-                print(f"Warning: Failed to load '{lang_code}', falling back to '{DEFAULT_LANG_CODE}'")
                 default_data = self._load_language_file(DEFAULT_LANG_CODE)
                 if default_data:
                     self.initialization_warning = DEFAULT_LANG_KEYS.get("lang_load_error", "Language load error.").format(lang_code=lang_code, lang_dir=LANG_DIR)
@@ -223,6 +226,46 @@ class Backend:
                     return None
 
     # ====================== CONFIG LOADING/SAVING ======================
+    def _load_json_config(self, filepath, default_value=None):
+        """
+        Generic method to load JSON configuration files.
+        
+        Args:
+            filepath: Path to the JSON file
+            default_value: Default value to return if loading fails
+            
+        Returns:
+            dict/list: The loaded data or default_value if loading failed
+        """
+        if default_value is None:
+            default_value = {}
+            
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return default_value
+    
+    def _save_json_config(self, filepath, data):
+        """
+        Generic method to save JSON configuration files.
+        
+        Args:
+            filepath: Path to save the JSON file
+            data: Data to save
+            
+        Returns:
+            bool: True if saved successfully, False otherwise
+        """
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception:
+            return False
+    
     def _load_main_config(self):
         """
         Loads the main application config file.
@@ -230,13 +273,7 @@ class Backend:
         Returns:
             dict: The loaded config or an empty dict if loading failed
         """
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading config '{CONFIG_FILE}': {e}")
-        return {}
+        return self._load_json_config(CONFIG_FILE, {})
 
     def save_main_config(self, config_data):
         """
@@ -248,20 +285,14 @@ class Backend:
         Returns:
             bool: True if saved successfully, False otherwise
         """
-        try:
-            self.config_data = config_data
-            self.selected_language_code = self.config_data.get("selected_language", self.selected_language_code)
-            self._apply_settings_from_config()
-            self.lang = self._load_language_config(self.selected_language_code)
-            if not self.lang:
-                return False
-
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.config_data, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"Error saving main config: {e}")
+        self.config_data = config_data
+        self.selected_language_code = self.config_data.get("selected_language", self.selected_language_code)
+        self._apply_settings_from_config()
+        self.lang = self._load_language_config(self.selected_language_code)
+        if not self.lang:
             return False
+            
+        return self._save_json_config(CONFIG_FILE, self.config_data)
 
     def _load_templates_config(self):
         """
@@ -270,20 +301,19 @@ class Backend:
         Returns:
             dict: The loaded templates or default templates if loading failed
         """
-        if os.path.exists(TEMPLATES_FILE):
-            try:
-                with open(TEMPLATES_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                for k, v in data.items():
-                    v.setdefault("fields", [])
-                    v.setdefault("default_tags", [])
-                return data
-            except Exception as e:
-                print(f"Error loading '{TEMPLATES_FILE}': {e}")
-        return {
+        default_templates = {
             "T-shirt": {"fields": ["Length", "Width (chest)"], "default_tags": ["base", "t-shirt", "top"]},
             "Pants": {"fields": ["Length", "Waist"], "default_tags": ["base", "pants"]}
         }
+        
+        data = self._load_json_config(TEMPLATES_FILE, default_templates)
+        
+        # Ensure all templates have required fields
+        for k, v in data.items():
+            v.setdefault("fields", [])
+            v.setdefault("default_tags", [])
+        
+        return data
 
     def _load_hashtag_mapping_config(self):
         """
@@ -292,13 +322,8 @@ class Backend:
         Returns:
             dict: The loaded hashtag mappings or default mappings if loading failed
         """
-        if os.path.exists(HASHTAG_FILE):
-            try:
-                with open(HASHTAG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading '{HASHTAG_FILE}': {e}")
-        return {"vintage": ["vintage", "retro"], "y2k": ["y2k", "2000s"]}
+        default_mappings = {"vintage": ["vintage", "retro"], "y2k": ["y2k", "2000s"]}
+        return self._load_json_config(HASHTAG_FILE, default_mappings)
 
     def save_templates_config(self, templates_data):
         """
@@ -310,14 +335,8 @@ class Backend:
         Returns:
             bool: True if saved successfully, False otherwise
         """
-        try:
-            self.templates = templates_data
-            with open(TEMPLATES_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.templates, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"Error saving templates config: {e}")
-            return False
+        self.templates = templates_data
+        return self._save_json_config(TEMPLATES_FILE, self.templates)
 
     def save_hashtag_mapping_config(self, mapping_data):
         """
@@ -329,14 +348,8 @@ class Backend:
         Returns:
             bool: True if saved successfully, False otherwise
         """
-        try:
-            self.hashtag_mapping = mapping_data
-            with open(HASHTAG_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.hashtag_mapping, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"Error saving hashtag mapping config: {e}")
-            return False
+        self.hashtag_mapping = mapping_data
+        return self._save_json_config(HASHTAG_FILE, self.hashtag_mapping)
 
     # ====================== BACKGROUND HANDLING ======================
     def scan_backgrounds_folder(self):
@@ -374,7 +387,7 @@ class Backend:
                     if os.path.isfile(full):
                         out.append(os.path.normpath(full))
         except OSError as e:
-            print(f"Error reading BG folder {folder}: {e}")
+            pass
         return out
 
     def add_background_files(self, file_paths):
@@ -402,7 +415,6 @@ class Backend:
             filename = os.path.basename(source_file)
             target_path = os.path.join(bg_dir, filename)
             
-            # Check if file already exists
             if os.path.exists(target_path):
                 skipped.append((filename, "Already exists"))
                 continue
@@ -411,10 +423,8 @@ class Backend:
                 shutil.copy2(source_file, target_path)
                 added_count += 1
             except Exception as e:
-                print(f"Error copying background {source_file}: {e}")
                 skipped.append((filename, f"Copy error: {e}"))
         
-        # Refresh backgrounds list if files were added
         if added_count > 0:
             self.scan_backgrounds_folder()
             
@@ -473,6 +483,26 @@ class Backend:
         self.projects.append(proj)
         return len(self.projects) - 1
 
+    def _load_image(self, path):
+        """
+        Loads and processes a single image.
+        
+        Args:
+            path: Path to the image file
+            
+        Returns:
+            tuple: (success, image_dict or None, error_message or None)
+        """
+        try:
+            img = Image.open(path)
+            img = ImageOps.exif_transpose(img)
+            img.load()
+            return True, {"path": path, "image": img}, None
+        except FileNotFoundError:
+            return False, None, f"Not found: {os.path.basename(path)}"
+        except Exception as e:
+            return False, None, f"Load fail ({os.path.basename(path)}): {e}"
+
     def load_single_project_images(self, project_index, image_paths):
         """
         Loads images into a specific project.
@@ -492,16 +522,12 @@ class Backend:
         errors = []
         
         for path in image_paths:
-            try:
-                img = Image.open(path)
-                img = ImageOps.exif_transpose(img)
-                img.load()
-                proj.clothing_images.append({"path": path, "image": img})
+            success, img_dict, error_msg = self._load_image(path)
+            if success:
+                proj.clothing_images.append(img_dict)
                 loaded_count += 1
-            except FileNotFoundError:
-                errors.append(f"Not found: {os.path.basename(path)}")
-            except Exception as e:
-                errors.append(f"Load fail ({os.path.basename(path)}): {e}")
+            else:
+                errors.append(error_msg)
                 
         return loaded_count > 0 or not errors, loaded_count, errors
 
@@ -557,14 +583,12 @@ class Backend:
                     if fname.lower().endswith(exts):
                         full_path = os.path.join(sf, fname)
                         if os.path.isfile(full_path):
-                            try:
-                                img = Image.open(full_path)
-                                img = ImageOps.exif_transpose(img)
-                                img.load()
-                                proj.clothing_images.append({"path": full_path, "image": img})
+                            success, img_dict, error_msg = self._load_image(full_path)
+                            if success:
+                                proj.clothing_images.append(img_dict)
                                 images_in_proj += 1
-                            except Exception as e:
-                                load_errors.append(f"Err: {proj_name}/{fname}: {e}")
+                            else:
+                                load_errors.append(f"Err: {proj_name}/{fname}: {error_msg}")
             except OSError as e:
                 load_errors.append(f"Err reading {proj_name}: {e}")
                     
@@ -713,12 +737,11 @@ class Backend:
             bg_source = None
             use_image_bg = (not self.use_solid_bg) and self.backgrounds
             if use_image_bg:
-                bg_path_auto = self._find_best_background(no_bg)
+                bg_path_auto = self._find_best_background(single_image=no_bg)
                 if bg_path_auto:
                     try:
                         bg_source = Image.open(bg_path_auto)
                     except Exception as e_bg:
-                        print(f"BG Load Err: {bg_path_auto}: {e_bg}")
                         bg_path_auto = None
 
             # Default adjustment values
@@ -741,7 +764,7 @@ class Backend:
                 "is_horizontal": is_horizontal,
                 "use_solid_bg": self.use_solid_bg,  # update to current global setting
                 "skip_bg_removal": False,
-                "rotation_angle": 0  # Initialize rotation angle
+                "rotation_angle": 0
             }
             if image_index < len(proj.processed_images):
                 proj.processed_images[image_index].update(processed_data)
@@ -793,7 +816,6 @@ class Backend:
                 
             return result
         except Exception as e:
-            print(f"BG Removal Err: {e}")
             if pil_image.mode != 'RGBA':
                 return pil_image.convert("RGBA")
             return pil_image
@@ -848,7 +870,6 @@ class Backend:
                 
             return color
         except Exception as e:
-            print(f"Dominant Color Err: {e}")
             return (128, 128, 128)
 
     def _color_distance(self, c1, c2):
@@ -897,12 +918,13 @@ class Backend:
         
         return (comp_r, comp_g, comp_b)
 
-    def _find_best_background(self, cutout_image):
+    def _find_best_background(self, cutout_images=None, single_image=None):
         """
-        Finds the background that provides the best contrast with the cutout.
+        Finds the background that provides the best contrast with the cutout(s).
         
         Args:
-            cutout_image: Image with transparent background
+            cutout_images: List of RGBA images with transparent backgrounds (for project)
+            single_image: Single RGBA image with transparent background
             
         Returns:
             str: Path to the best background image or None if none available
@@ -910,7 +932,34 @@ class Backend:
         if not self.backgrounds:
             return None
             
-        dom_color = self._compute_dominant_color(cutout_image)
+        # Determine the target color based on single or multiple images
+        if single_image is not None:
+            # Single image mode
+            target_color = self._compute_dominant_color(single_image)
+        elif cutout_images:
+            # Multiple images mode - calculate average color
+            total_r, total_g, total_b = 0, 0, 0
+            count = 0
+            
+            for cutout in cutout_images:
+                try:
+                    color = self._compute_dominant_color(cutout)
+                    total_r += color[0]
+                    total_g += color[1]
+                    total_b += color[2]
+                    count += 1
+                except Exception:
+                    pass
+                    
+            if count == 0:
+                return None
+                
+            # Average color of all items
+            target_color = (total_r // count, total_g // count, total_b // count)
+        else:
+            return None
+            
+        # Find background with best contrast
         best_bg_path = None
         max_dist = -1
         
@@ -918,13 +967,13 @@ class Backend:
             try:
                 with Image.open(bg_path) as bg_img:
                     avg_bg_color = self._compute_dominant_color(bg_img, ignore_transparent=False)
-                    dist = self._color_distance(dom_color, avg_bg_color)
+                    dist = self._color_distance(target_color, avg_bg_color)
                     
                     if dist > max_dist:
                         max_dist = dist
                         best_bg_path = bg_path
-            except Exception as e:
-                print(f"BG Candidate Err {bg_path}: {e}")
+            except Exception:
+                pass
                 
         return best_bg_path
     
@@ -938,46 +987,8 @@ class Backend:
         Returns:
             str: Path to the best background image or None if none available
         """
-        if not self.backgrounds or not cutout_images:
-            return None
-            
-        # Calculate average color across all cutout images
-        total_r, total_g, total_b = 0, 0, 0
-        count = 0
-        
-        for cutout in cutout_images:
-            try:
-                color = self._compute_dominant_color(cutout)
-                total_r += color[0]
-                total_g += color[1]
-                total_b += color[2]
-                count += 1
-            except Exception as e:
-                print(f"Error computing color for cutout: {e}")
-                
-        if count == 0:
-            return None
-            
-        # Average color of all items
-        avg_item_color = (total_r // count, total_g // count, total_b // count)
-        
-        # Find background with best contrast to average
-        best_bg_path = None
-        max_dist = -1
-        
-        for bg_path in self.backgrounds:
-            try:
-                with Image.open(bg_path) as bg_img:
-                    avg_bg_color = self._compute_dominant_color(bg_img, ignore_transparent=False)
-                    dist = self._color_distance(avg_item_color, avg_bg_color)
-                    
-                    if dist > max_dist:
-                        max_dist = dist
-                        best_bg_path = bg_path
-            except Exception as e:
-                print(f"BG Candidate Err {bg_path}: {e}")
-                
-        return best_bg_path
+        # Delegate to the unified method
+        return self._find_best_background(cutout_images=cutout_images)
 
     def fit_clothing(self, cutout_image, background_image, vof, hof, scale, is_horizontal=False, use_solid_bg=None, rotation_angle=0):
         """
@@ -1051,7 +1062,6 @@ class Backend:
             final_canvas.paste(content_resized, (paste_x, paste_y), content_resized)
             return final_canvas
         except Exception as e:
-            print(f"Fit Clothing Err: {e}")
             return Image.new("RGBA", (self.canvas_width_v, self.canvas_height_v), (255,0,0,128))
 
     def process_project_images(self, project_index):
@@ -1133,7 +1143,6 @@ class Backend:
             try:
                 bg_source = Image.open(proj.project_bg_path)
             except Exception as e:
-                print(f"Failed to load project background {proj.project_bg_path}: {e}")
                 bg_source = None
                 
         # Now finalize all processed images with the same background
@@ -1224,14 +1233,14 @@ class Backend:
         # If no background path is stored and the individual setting requests an image background,
         # try to auto-find one.
         if effective_bg_path is None and not item.get("use_solid_bg", self.use_solid_bg) and self.backgrounds:
-            effective_bg_path = self._find_best_background(no_bg)
+            effective_bg_path = self._find_best_background(single_image=no_bg)
             item["bg_path"] = effective_bg_path
 
         if effective_bg_path and not item.get("use_solid_bg", self.use_solid_bg) and not skip_bg_removal:
             try:
                 bg_source = Image.open(effective_bg_path)
             except Exception as e:
-                print(f"Warn: Reload BG {effective_bg_path} failed: {e}")
+                pass
 
         try:
             new_final = self.fit_clothing(no_bg, bg_source, vof, hof, scale, is_horizontal,
@@ -1239,10 +1248,60 @@ class Backend:
             item["processed"] = new_final
             return new_final
         except Exception as e:
-            print(f"Adjustment Err img {image_index}: {e}")
             return None
 
     # ====================== DESCRIPTION GENERATION ======================
+    def _clean_hashtag(self, tag):
+        """
+        Cleans and formats a hashtag.
+        
+        Args:
+            tag: The tag to clean
+            
+        Returns:
+            str: Cleaned hashtag with # prefix
+        """
+        clean_tag = tag.strip().replace(" ", "_")
+        if clean_tag and not clean_tag.startswith('#'):
+            clean_tag = '#' + clean_tag
+        return clean_tag.lower()
+    
+    def _process_hashtags(self, selected_tags, custom_hashtags_str):
+        """
+        Processes selected tags and custom hashtags into a unified set.
+        
+        Args:
+            selected_tags: List of selected tag names
+            custom_hashtags_str: Comma-separated custom hashtags string
+            
+        Returns:
+            set: Set of processed hashtags
+        """
+        hashtags = set()
+        
+        # Process selected tags
+        for tag in selected_tags:
+            tag_lower = tag.lower()
+            if tag_lower in self.hashtag_mapping:
+                for ht in self.hashtag_mapping[tag_lower]:
+                    clean_ht = self._clean_hashtag(ht)
+                    if clean_ht:
+                        hashtags.add(clean_ht)
+            elif tag:
+                clean_ht = self._clean_hashtag(tag)
+                if clean_ht:
+                    hashtags.add(clean_ht)
+        
+        # Process custom hashtags
+        if custom_hashtags_str:
+            custom_list = [c.strip() for c in custom_hashtags_str.split(',') if c.strip()]
+            for ctag in custom_list:
+                clean_tag = self._clean_hashtag(ctag)
+                if clean_tag:
+                    hashtags.add(clean_tag)
+        
+        return hashtags
+
     def generate_description_for_project(self, project_index):
         """
         Generates a formatted description for a project based on its data.
@@ -1268,32 +1327,9 @@ class Backend:
                 measurement_lines.append(f"{field_display}: {val_str} {self.units}")
                 
         measurement_desc = "\n".join(measurement_lines)
-        hashtags = set()
         
-        for tag in proj.selected_tags:
-            tag_lower = tag.lower()
-            if tag_lower in self.hashtag_mapping:
-                for ht in self.hashtag_mapping[tag_lower]:
-                    clean_ht = ht.strip().replace(" ", "_")
-                    if clean_ht:
-                        if not clean_ht.startswith('#'):
-                            clean_ht = '#' + clean_ht
-                        hashtags.add(clean_ht.lower())
-            elif tag:
-                clean_ht = tag.strip().replace(" ", "_")
-                if clean_ht:
-                    if not clean_ht.startswith('#'):
-                        clean_ht = '#' + clean_ht
-                    hashtags.add(clean_ht.lower())
-                    
-        custom_list = [c.strip() for c in proj.custom_hashtags.split(',') if c.strip()] if proj.custom_hashtags else []
-        
-        for ctag in custom_list:
-            clean_ctag = ctag.replace(" ", "_")
-            if not clean_ctag.startswith('#'):
-                clean_ctag = '#' + clean_ctag
-            hashtags.add(clean_ctag.lower())
-            
+        # Use the new helper methods for hashtag processing
+        hashtags = self._process_hashtags(proj.selected_tags, proj.custom_hashtags)
         sorted_hashtags = sorted(list(hashtags))
         hashtags_text = " ".join(sorted_hashtags)
         storage_tag = ""
@@ -1372,7 +1408,6 @@ class Backend:
                 item["processed"].save(save_path, format='PNG')
                 img_ok += 1
             except Exception as e:
-                print(f"Save Err: {save_path}: {e}")
                 img_err += 1
                 
         desc_path = os.path.join(output_folder, f"{proj_name_sanitized}_description.txt")
@@ -1384,7 +1419,7 @@ class Backend:
                 f.write(desc_content)
             desc_saved = True
         except Exception as e:
-            print(f"Save Desc Err: {desc_path}: {e}")
+            pass
             
         return True, output_folder, img_ok, img_err, desc_saved
 
@@ -1396,4 +1431,4 @@ class Backend:
                 shutil.rmtree(self.temp_extract_dir, ignore_errors=True)
                 self.temp_extract_dir = None
             except Exception as e:
-                print(f"Warn: failed remove {self.temp_extract_dir}: {e}")
+                pass

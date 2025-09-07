@@ -31,7 +31,7 @@ class App(ttk.Window):
                 if os.path.exists(icon_path):
                     self.iconbitmap(icon_path)
         except Exception as e:
-            print(f"Icon error: {e}")
+            pass
 
         try:
             self.backend = Backend()
@@ -61,7 +61,6 @@ class App(ttk.Window):
         else:
             self.attributes('-zoomed', True)  # Maximize on Linux/others
 
-        # Initialize state variables
         self.proc_image_widgets = []
         self.selected_processed_index = None
         self.tag_vars = {}
@@ -77,7 +76,6 @@ class App(ttk.Window):
         self.editor_type_tag_vars = {}
         self.editor_type_tag_checkbuttons = {}
 
-        # Create the GUI
         self._create_main_gui()
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)
 
@@ -130,7 +128,6 @@ class App(ttk.Window):
         nav_frame = ttk.Frame(top_frame)
         nav_frame.grid(row=0, column=0, sticky="w")
         
-        # Add new project and remove project buttons
         ttk.Button(
             nav_frame,
             text=self.lang.get("new_project_button", "➕ Project"),
@@ -172,7 +169,6 @@ class App(ttk.Window):
         process_frame = ttk.Frame(top_frame)
         process_frame.grid(row=0, column=3, sticky="we")
         
-        # Add solid background color checkbox
         self.global_use_solid_bg_var = tk.BooleanVar(value=self.backend.use_solid_bg)
         ttk.Checkbutton(
             process_frame,
@@ -207,6 +203,36 @@ class App(ttk.Window):
             command=self.open_editor_window
         ).grid(row=0, column=4, sticky="e", padx=(10, 0))
 
+    def _setup_scrollable_canvas(self, parent, padding="0", height=None):
+        """
+        Creates a scrollable canvas with frame and scrollbar.
+        
+        Args:
+            parent: Parent widget
+            padding: Padding for the internal frame
+            height: Optional fixed height for the canvas
+            
+        Returns:
+            tuple: (canvas, scrollbar, frame, frame_id)
+        """
+        canvas = tk.Canvas(parent, borderwidth=0, highlightthickness=0)
+        if height:
+            canvas.configure(height=height)
+            
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        frame = ttk.Frame(canvas, padding=padding)
+        frame_id = canvas.create_window((0, 0), window=frame, anchor="nw")
+        
+        # Bind events for scrolling and resizing
+        frame.bind("<Configure>", lambda e: self._on_frame_configure(canvas))
+        canvas.bind("<Configure>", lambda e: self._on_canvas_configure(canvas, frame_id))
+        canvas.bind("<Enter>", lambda e: self._bind_mousewheel(canvas))
+        canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
+        
+        return canvas, scrollbar, frame, frame_id
+
     def _create_left_panel(self, parent):
         """Create the left control panel with form fields."""
         left_container = ttk.Frame(parent)
@@ -215,27 +241,17 @@ class App(ttk.Window):
         left_container.grid_rowconfigure(1, weight=0)
         left_container.grid_columnconfigure(0, weight=1)
         
-        # Create a scrollable canvas for the controls
-        self.left_control_canvas = tk.Canvas(left_container, borderwidth=0, highlightthickness=0)
-        left_scrollbar = ttk.Scrollbar(left_container, orient="vertical", command=self.left_control_canvas.yview)
-        self.left_control_canvas.configure(yscrollcommand=left_scrollbar.set)
-        self.left_control_canvas.grid(row=0, column=0, sticky="nsew")
-        left_scrollbar.grid(row=0, column=1, sticky="ns")
+        # Use the helper to create scrollable canvas
+        canvas, scrollbar, frame, frame_id = self._setup_scrollable_canvas(left_container, padding="5")
+        self.left_control_canvas = canvas
+        self.control_frame = frame
+        self.control_frame_id = frame_id
         
-        # Create a frame inside the canvas for the controls
-        self.control_frame = ttk.Frame(self.left_control_canvas, padding="5")
-        self.control_frame_id = self.left_control_canvas.create_window((0, 0), window=self.control_frame, anchor="nw")
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
         
-        # Bind events for scrolling and resizing
-        self.control_frame.bind("<Configure>", lambda e: self._on_frame_configure(self.left_control_canvas))
-        self.left_control_canvas.bind("<Configure>", lambda e: self._on_canvas_configure(self.left_control_canvas, self.control_frame_id))
-        self.left_control_canvas.bind("<Enter>", lambda e: self._bind_mousewheel(self.left_control_canvas))
-        self.left_control_canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
-        
-        # Create the actual form controls
         self._create_left_controls(self.control_frame)
         
-        # Add hint text at the bottom
         self.hint_label = ttk.Label(
             left_container, 
             text=self.lang.get("no_values_mandatory_hint", "*All fields are optional"), 
@@ -251,15 +267,12 @@ class App(ttk.Window):
         right_container.grid_rowconfigure(0, weight=1)
         right_container.grid_columnconfigure(0, weight=1)
         
-        # Create notebook with tabs
         self.notebook = ttk.Notebook(right_container)
         self.notebook.grid(row=0, column=0, sticky="nsew")
         
-        # Create frames for each tab
         self.images_tab_frame = ttk.Frame(self.notebook, padding="5")
         self.description_tab_frame = ttk.Frame(self.notebook, padding="5")
         
-        # Add frames to notebook
         self.notebook.add(
             self.images_tab_frame, 
             text=self.lang.get("images_tab", "🖼️ Images & Adjustments")
@@ -269,7 +282,6 @@ class App(ttk.Window):
             text=self.lang.get("description_tab", "📝 Description")
         )
         
-        # Create content for each tab
         self._create_images_tab(self.images_tab_frame)
         self._create_description_tab(self.description_tab_frame)
 
@@ -390,7 +402,6 @@ class App(ttk.Window):
         tags_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
         tags_lframe.grid_columnconfigure(0, weight=1)
         
-        # Add search field
         self.tag_search_var = tk.StringVar()
         self.tag_search_entry = ttk.Entry(tags_lframe, textvariable=self.tag_search_var, width=30)
         self.tag_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
@@ -402,7 +413,6 @@ class App(ttk.Window):
                                 ))
         self._add_placeholder(self.tag_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
         
-        # Create scrollable container for checkboxes
         tags_canvas_frame = ttk.Frame(tags_lframe)
         tags_canvas_frame.grid(row=1, column=0, sticky="nsew")
         tags_canvas_frame.grid_rowconfigure(0, weight=1)
@@ -414,7 +424,6 @@ class App(ttk.Window):
         self.tags_canvas.grid(row=0, column=0, sticky="nsew")
         tags_scrollbar.grid(row=0, column=1, sticky="ns")
         
-        # Create frame for checkboxes
         self.tags_check_container = ttk.Frame(self.tags_canvas, padding=(5, 0))
         self.tags_check_container_id = self.tags_canvas.create_window((0, 0), window=self.tags_check_container, anchor='nw')
         
@@ -424,7 +433,6 @@ class App(ttk.Window):
         self.tags_canvas.bind("<Enter>", lambda e: self._bind_mousewheel(self.tags_canvas))
         self.tags_canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
         
-        # Create tag checkboxes
         self._create_tag_checkboxes()
 
     def _create_colors_section(self, parent, row_index):
@@ -433,7 +441,6 @@ class App(ttk.Window):
         colors_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
         colors_lframe.grid_columnconfigure(0, weight=1)
 
-        # Add search field
         self.color_search_var = tk.StringVar()
         self.color_search_entry = ttk.Entry(colors_lframe, textvariable=self.color_search_var, width=30)
         self.color_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
@@ -445,7 +452,6 @@ class App(ttk.Window):
                                   ))
         self._add_placeholder(self.color_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
 
-        # Create scrollable container for checkboxes
         colors_canvas_frame = ttk.Frame(colors_lframe)
         colors_canvas_frame.grid(row=1, column=0, sticky="nsew")
         colors_canvas_frame.grid_rowconfigure(0, weight=1)
@@ -457,7 +463,6 @@ class App(ttk.Window):
         self.colors_canvas.grid(row=0, column=0, sticky="nsew")
         colors_scrollbar.grid(row=0, column=1, sticky="ns")
 
-        # Create frame for checkboxes
         self.colors_check_container = ttk.Frame(self.colors_canvas, padding=(5, 0))
         self.colors_check_container_id = self.colors_canvas.create_window((0, 0), window=self.colors_check_container, anchor='nw')
         
@@ -467,7 +472,6 @@ class App(ttk.Window):
         self.colors_canvas.bind("<Enter>", lambda e: self._bind_mousewheel(self.colors_canvas))
         self.colors_canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
 
-        # Create color checkboxes
         self._create_color_checkboxes()
 
     # ====================== IMAGES TAB ======================
@@ -476,14 +480,12 @@ class App(ttk.Window):
         parent.grid_rowconfigure(0, weight=1)
         parent.grid_columnconfigure(0, weight=1)
         
-        # Create scrollable canvas for image display
         self.img_canvas = tk.Canvas(parent, borderwidth=0, highlightthickness=0)
         img_scrollbar = ttk.Scrollbar(parent, orient="vertical", command=self.img_canvas.yview)
         self.img_canvas.configure(yscrollcommand=img_scrollbar.set)
         self.img_canvas.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
         img_scrollbar.grid(row=0, column=1, sticky="ns", pady=(0, 5))
         
-        # Create frame for image display
         self.img_display_frame = ttk.Frame(self.img_canvas, padding="5")
         self.img_display_frame_id = self.img_canvas.create_window((0, 0), window=self.img_display_frame, anchor="nw")
         
@@ -493,8 +495,52 @@ class App(ttk.Window):
         self.img_canvas.bind("<Enter>", lambda e: self._bind_mousewheel(self.img_canvas))
         self.img_canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
         
-        # Create adjustment controls
         self._create_adjustment_controls(parent)
+
+    def _create_adjustment_slider(self, parent, row, label_text, from_val, to_val, initial_val, 
+                                  slider_attr, label_attr, format_str="+{:.2f}"):
+        """
+        Creates an adjustment slider with label.
+        
+        Args:
+            parent: Parent widget
+            row: Grid row position
+            label_text: Text for the label
+            from_val: Minimum slider value
+            to_val: Maximum slider value
+            initial_val: Initial slider value
+            slider_attr: Attribute name to store slider widget
+            label_attr: Attribute name to store value label widget
+            format_str: Format string for value display
+            
+        Returns:
+            int: Next row number
+        """
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w", pady=1)
+        
+        slider = ttk.Scale(
+            parent,
+            from_=from_val,
+            to=to_val,
+            orient="horizontal",
+            length=200,
+            value=initial_val,
+            command=self._on_slider_change
+        )
+        slider.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
+        setattr(self, slider_attr, slider)
+        
+        # Format initial value
+        if "scale" in slider_attr:
+            initial_text = f"{initial_val}×"
+        else:
+            initial_text = format_str.format(initial_val)
+            
+        label = ttk.Label(parent, text=initial_text)
+        label.grid(row=row, column=2, sticky="w", padx=5, pady=1)
+        setattr(self, label_attr, label)
+        
+        return row + 1
 
     def _create_adjustment_controls(self, parent):
         """Create the image adjustment controls."""
@@ -728,7 +774,6 @@ class App(ttk.Window):
             if sel:
                 current_selection = listbox.get(sel[0])
                 
-        # Clear the listbox
         listbox.delete(0, tk.END)
         
         # Get search term, ignore if it's the placeholder
@@ -737,14 +782,12 @@ class App(ttk.Window):
         if search_term == placeholder or not search_term:
             search_term = ""
             
-        # Add filtered items
         added_items = []
         for item in sorted(items):
             if search_term == "" or search_term in item.lower():
                 listbox.insert(tk.END, item)
                 added_items.append(item)
                 
-        # Add the "New" button at the end
         listbox.insert(tk.END, new_button_text)
         added_items.append(new_button_text)
         
@@ -838,7 +881,6 @@ class App(ttk.Window):
         self.color_vars.clear()
         self.color_checkbuttons.clear()
         
-        # Get only color tags
         color_tags = [tag for tag in self.backend.hashtag_mapping.keys() if tag.endswith(" color")]
         sorted_colors = sorted(color_tags)
         
@@ -864,7 +906,6 @@ class App(ttk.Window):
             c.grid(row=0, column=0, sticky="w")
             self.color_checkbuttons[color] = c
             
-            # Add color swatch
             preview_color = self._get_color_from_name(display_name)
             color_swatch = tk.Canvas(color_frame, width=15, height=15, bd=1, relief="solid")
             color_swatch.configure(bg=preview_color)
@@ -935,7 +976,6 @@ class App(ttk.Window):
         self._save_current_form_to_backend()
         self._update_measurement_fields_display(new_type)
         
-        # Set default tags based on the selected type
         default_tags = self.backend.templates.get(new_type, {}).get("default_tags", [])
         changed_tags = False
         
@@ -953,7 +993,6 @@ class App(ttk.Window):
 
     def _update_measurement_fields_display(self, clothing_type):
         """Update the measurement fields based on clothing type."""
-        # Clear the measurement frame
         for widget in self.measurement_lframe.winfo_children():
             if isinstance(widget, (ttk.Entry, ttk.Label)):
                 widget.destroy()
@@ -994,7 +1033,6 @@ class App(ttk.Window):
         if idx < 0:
             return
             
-        # Get selected tags and colors
         selected_tags = [tag for tag, var in self.tag_vars.items() if var.get()]
         selected_colors = [color for color, var in self.color_vars.items() if var.get()]
         
@@ -1027,16 +1065,13 @@ class App(ttk.Window):
         has_proj = proj is not None
         has_clothing_type = has_proj and proj.clothing_type
         
-        # Update hint label
         self.hint_label.config(
             text=self.lang.get("no_values_mandatory_hint", "*All fields are optional") if has_proj else ""
         )
         
-        # Update clothing type selector
         self._update_clothing_type_options()
         self.clothing_type_var.set(proj.clothing_type if has_proj else "")
         
-        # Update state field
         state_val = proj.state if has_proj else ""
         if self.state_entry.get() != state_val:
             self.state_entry.delete(0, tk.END)
@@ -1049,7 +1084,6 @@ class App(ttk.Window):
         else:
             self.measurement_lframe.grid_remove()  # Hide the frame
             
-        # Update tag checkboxes
         if not hasattr(self, 'tag_vars') or not self.tag_vars:
             self._create_tag_checkboxes()
         else:
@@ -1057,19 +1091,16 @@ class App(ttk.Window):
                 var.set(has_proj and tag in proj.selected_tags)
             self._filter_tags_display()
         
-        # Update color checkboxes
         if hasattr(self, 'color_vars'):
             for color, var in self.color_vars.items():
                 var.set(has_proj and color in proj.selected_tags)
             self._filter_colors_display()
             
-        # Update custom hashtags field
         custom_val = proj.custom_hashtags if has_proj else ""
         if self.custom_hashtags_entry.get() != custom_val:
             self.custom_hashtags_entry.delete(0, tk.END)
             self.custom_hashtags_entry.insert(tk.END, custom_val)
             
-        # Update owner and storage fields
         owner_val = proj.owner_letter if has_proj else ""
         if self.owner_entry.get() != owner_val:
             self.owner_entry.delete(0, tk.END)
@@ -1084,7 +1115,6 @@ class App(ttk.Window):
         """Refresh the right panel display with current project data."""
         proj = self.backend.get_current_project()
         
-        # Clear current image display
         for widget in self.img_display_frame.winfo_children():
             widget.destroy()
             
@@ -1102,18 +1132,15 @@ class App(ttk.Window):
             for c in range(max_cols):
                 self.img_display_frame.grid_columnconfigure(c, weight=1, uniform="imgCol")
                 
-            # Create widgets for each image
             for i, img_data in enumerate(proj.clothing_images):
                 item_frame = ttk.Frame(self.img_display_frame, relief="groove", borderwidth=1, padding=5)
                 item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
                 item_frame.grid_columnconfigure(0, weight=1)
                 
-                # Add image controls
                 img_control_frame = ttk.Frame(item_frame)
                 img_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
                 img_control_frame.grid_columnconfigure(0, weight=1)
                 
-                # Add remove button
                 ttk.Button(
                     img_control_frame, 
                     text=self.lang.get("remove_image_button", "🗑️"), 
@@ -1126,11 +1153,11 @@ class App(ttk.Window):
                     orig_thumb = img_data["image"].copy()
                     orig_thumb.thumbnail((150, 150))
                     orig_photo = ImageTk.PhotoImage(orig_thumb)
-                    orig_lbl = ttk.Label(item_frame, image=orig_photo)
+                    orig_lbl = ttk.Label(item_frame, image=orig_photo, cursor="hand2")
                     orig_lbl.image = orig_photo
                     orig_lbl.grid(row=0, column=0, pady=(0, 5))
+                    orig_lbl.bind("<Double-Button-1>", lambda e, img=img_data["image"]: self._show_image_popup(img))
                 except Exception as e:
-                    print(f"Thumbnail Error (Original) {i}: {e}")
                     ttk.Label(item_frame, text="Error loading image").grid(row=0, column=0, pady=(0, 5))
                     
                 # Display processed image if available
@@ -1152,9 +1179,9 @@ class App(ttk.Window):
                         proc_lbl.image = proc_photo
                         proc_lbl.grid(row=1, column=0)
                         proc_lbl.bind("<Button-1>", lambda e, idx=i: self._on_processed_image_click(idx))
+                        proc_lbl.bind("<Double-Button-1>", lambda e, img=processed_img: self._show_image_popup(img))
                         self.proc_image_widgets.append({"label": proc_lbl, "photo": proc_photo, "index": i})
                     except Exception as e:
-                        print(f"Thumbnail Error (Processed) {i}: {e}")
                         ttk.Label(item_frame, text="Error loading processed image").grid(row=1, column=0)
                 else:
                     ttk.Label(
@@ -1185,14 +1212,11 @@ class App(ttk.Window):
         if need_highlight:
             self._highlight_selected_processed()
             
-        # Update adjustment fields
         self._populate_adjustment_fields()
         
-        # Update the canvas scrollregion
         self.img_display_frame.update_idletasks()
         self._update_canvas_scrollregion(self.img_canvas)
         
-        # Update description text
         current_desc_text = self.desc_text.get(1.0, tk.END).strip()
         backend_desc = proj.generated_description if proj else ""
         
@@ -1231,13 +1255,11 @@ class App(ttk.Window):
         options = [auto_option]
         self.bg_combobox_map[auto_option] = None
         
-        # Add all background options
         for bg_path in self.backend.backgrounds:
             display_name = os.path.basename(bg_path)
             options.append(display_name)
             self.bg_combobox_map[display_name] = bg_path
             
-        # Set values and maintain current selection if possible
         current_val = self.bg_select_var.get()
         self.bg_select_combo['values'] = options
         
@@ -1255,12 +1277,10 @@ class App(ttk.Window):
         if proj and self.selected_processed_index is not None and 0 <= self.selected_processed_index < len(proj.processed_images):
             item = proj.processed_images[self.selected_processed_index]
             
-            # Set position adjustments to sliders
             self.slider_vof.set(item["vof"])
             self.slider_hof.set(item["hof"])
             self.slider_scale.set(item["scale"])
             
-            # Update the slider labels
             vof_val = round(float(self.slider_vof.get()), 2)
             hof_val = round(float(self.slider_hof.get()), 2)
             scale_val = round(float(self.slider_scale.get()), 2)
@@ -1268,24 +1288,19 @@ class App(ttk.Window):
             self.label_hof.config(text=f"{hof_val:+.2f}")
             self.label_scale.config(text=f"{scale_val:.1f}×")
             
-            # Set rotation angle
             rotation_angle = item.get("rotation_angle", 0)
             self.rotation_angle_var.set(f"{rotation_angle}°")
             
-            # Set checkbox states
             skip_bg = item.get("skip_bg_removal", False)
             self.skip_bg_removal_var.set(skip_bg)
             
             use_solid_bg = item.get("use_solid_bg", False)
             self.item_use_solid_bg_var.set(use_solid_bg)
             
-            # Set ratio and background selection
             self.bg_ratio_var.set(item.get("is_horizontal", False))
             
-            # Update background selector
             self._update_bg_selector_options()
             
-            # Set the selected background
             selected_bg_key = self.lang.get("auto_background_option", "Auto (Default)")
             user_choice = item.get("user_bg_path")
             
@@ -1344,6 +1359,48 @@ class App(ttk.Window):
         
         # Apply the rotation
         self._process_with_indicator(self.ui_apply_adjustments)
+    
+    def _show_image_popup(self, pil_image):
+        """Display an image in a popup window at its actual size."""
+        if not pil_image:
+            return
+        
+        popup = tk.Toplevel(self)
+        popup.title(self.lang.get("image_preview", "Image Preview"))
+        popup.transient(self)
+        
+        screen_width = popup.winfo_screenwidth()
+        screen_height = popup.winfo_screenheight()
+        max_width = int(screen_width * 0.9)
+        max_height = int(screen_height * 0.9)
+        
+        img_width, img_height = pil_image.size
+        
+        # Scale down if needed to fit screen
+        if img_width > max_width or img_height > max_height:
+            scale = min(max_width / img_width, max_height / img_height)
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
+            display_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
+        else:
+            display_image = pil_image
+        
+        photo = ImageTk.PhotoImage(display_image)
+        label = ttk.Label(popup, image=photo)
+        label.image = photo  # Keep reference
+        label.pack()
+        
+        # Center the popup on screen
+        popup.update_idletasks()
+        x = (screen_width - popup.winfo_width()) // 2
+        y = (screen_height - popup.winfo_height()) // 2
+        popup.geometry(f"+{x}+{y}")
+        
+        # Close on click or Escape key
+        popup.bind("<Escape>", lambda e: popup.destroy())
+        label.bind("<Button-1>", lambda e: popup.destroy())
+        
+        popup.focus_set()
         
     def _on_global_use_solid_bg_change(self):
         """Handle global solid background setting change."""
@@ -1351,7 +1408,6 @@ class App(ttk.Window):
         current_config = self.backend.config_data.copy()
         current_config["use_solid_bg"] = use_solid
         
-        # Save setting to backend
         if self.backend.save_main_config(current_config):
             # Update any UI elements that depend on this setting
             self._update_bg_selector_options()
@@ -1367,7 +1423,6 @@ class App(ttk.Window):
         hof_val = round(float(self.slider_hof.get()), 2)
         scale_val = round(float(self.slider_scale.get()), 2)
         
-        # Update the labels
         self.label_vof.config(text=f"{vof_val:+.2f}")
         self.label_hof.config(text=f"{hof_val:+.2f}")
         self.label_scale.config(text=f"{scale_val:.1f}×")
@@ -1412,7 +1467,6 @@ class App(ttk.Window):
                 # Thin border for unselected
                 widget_info["label"].configure(relief="solid", borderwidth=1)
         
-        # Update adjustment fields for the new selection
         self._populate_adjustment_fields()
 
     # ====================== UI ACTIONS ======================
@@ -1443,7 +1497,6 @@ class App(ttk.Window):
             operation_func: Function to execute
             *args, **kwargs: Arguments to pass to the function
         """
-        # Create processing dialog
         dialog = tk.Toplevel(self)
         dialog.title(self.lang.get("processing_title", "Processing"))
         dialog.geometry("250x100")
@@ -1457,7 +1510,6 @@ class App(ttk.Window):
         y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
         
-        # Processing indicator
         ttk.Label(
             dialog, 
             text=self.lang.get("processing_warning", "Processing image..."), 
@@ -1468,7 +1520,6 @@ class App(ttk.Window):
         progress.pack(pady=(0, 10))
         progress.start(10)
         
-        # Update to make sure dialog is drawn
         dialog.update()
         
         # Execute operation after UI update
@@ -1479,7 +1530,6 @@ class App(ttk.Window):
                 return result
             except Exception as e:
                 dialog.destroy()
-                print(f"Operation error: {e}")
                 return None
                 
         # Schedule the operation
@@ -1542,7 +1592,6 @@ class App(ttk.Window):
             success = False
             message = f"An unexpected error occurred during zip loading:\n{e}"
             errors = []
-            print(f"Zip Load Exception: {e}")
         finally:
             self.config(cursor="")
 
@@ -1629,7 +1678,6 @@ class App(ttk.Window):
             
         self._save_current_form_to_backend()
         
-        # Create progress popup
         popup = tk.Toplevel(self)
         popup.title(self.lang.get("processing_title", "Processing"))
         popup.geometry("350x150")
@@ -1647,7 +1695,6 @@ class App(ttk.Window):
         
         popup.update()
         
-        # Process images with progress updates
         total_images = len(proj.clothing_images)
         progress["maximum"] = total_images
         
@@ -1660,7 +1707,6 @@ class App(ttk.Window):
             progress["value"] = i
             popup.update()
             
-            # Check if this image needs processing
             needs_processing = (
                 i >= len(proj.processed_images) or 
                 "processed" not in proj.processed_images[i] or 
@@ -1703,7 +1749,6 @@ class App(ttk.Window):
         if not proj or image_index < 0 or image_index >= len(proj.clothing_images):
             return
             
-        # Remove the image from clothing_images
         proj.clothing_images.pop(image_index)
         
         # Also remove any processed version if it exists
@@ -1723,7 +1768,6 @@ class App(ttk.Window):
         self.proc_image_widgets = []
         self.refresh_right_display()
         
-        # Update system
         self.update_idletasks()
 
     def ui_apply_adjustments(self):
@@ -1736,30 +1780,25 @@ class App(ttk.Window):
             # Silently return instead of showing warning
             return
             
-        # Get values from sliders
         vof = float(self.slider_vof.get())
         hof = float(self.slider_hof.get())
         scale = float(self.slider_scale.get())
         
-        # Get rotation angle
         rotation_angle_str = self.rotation_angle_var.get()
         rotation_angle = int(rotation_angle_str.rstrip('°'))
         
-        # Get other settings
         selected_bg_display = self.bg_select_var.get()
         user_bg_path = self.bg_combobox_map.get(selected_bg_display)
         is_horizontal = self.bg_ratio_var.get()
         skip_bg_removal = self.skip_bg_removal_var.get()
         use_solid_bg = self.item_use_solid_bg_var.get()
         
-        # Check if force reprocessing is needed
         proj = self.backend.get_project(idx)
         force_reprocess = False
         
         if proj and 0 <= self.selected_processed_index < len(proj.processed_images):
             item = proj.processed_images[self.selected_processed_index]
             
-            # Settings that require reprocessing
             old_skip_state = item.get("skip_bg_removal", False)
             old_solid_bg_state = item.get("use_solid_bg", None)
             
@@ -1787,7 +1826,6 @@ class App(ttk.Window):
             if target_widget_info:
                 lbl = target_widget_info["label"]
                 try:
-                    # Create a new thumbnail
                     thumb_w, thumb_h = (200, 150) if is_horizontal else (150, 200)
                     thumb = new_image.copy()
                     thumb.thumbnail((thumb_w, thumb_h))
@@ -1796,7 +1834,6 @@ class App(ttk.Window):
                     lbl.image = new_photo
                     target_widget_info["photo"] = new_photo
                     
-                    # Update appearance based on state
                     if skip_bg_removal:
                         lbl.configure(relief="solid", borderwidth=3)
                     else:
@@ -1805,7 +1842,6 @@ class App(ttk.Window):
                     # Restore selection highlight
                     self._highlight_selected_processed()
                 except Exception as e:
-                    print(f"Thumbnail Update Error: {e}")
                     self.refresh_right_display()
             else:
                 self.refresh_right_display()
@@ -1860,7 +1896,6 @@ class App(ttk.Window):
                 parent=self
             )
         except Exception as e:
-            print(f"Clipboard Error: {e}")
             messagebox.showerror(
                 self.lang.get("error", "Error"), 
                 f"{self.lang.get('copy_fail', 'Could not copy to clipboard')}:\n{e}", 
@@ -1897,7 +1932,7 @@ class App(ttk.Window):
         if not base_folder:
             return
             
-        self._save_current_form_to_backend()  # Save current edits without regenerating
+        self._save_current_form_to_backend()
         
         self.config(cursor="watch")
         self.update_idletasks()
@@ -1949,9 +1984,8 @@ class App(ttk.Window):
                 if os.path.exists(icon_path):
                     self.editor_window.iconbitmap(icon_path)
         except Exception as e:
-            print(f"Settings icon error: {e}")
+            pass
         
-        # Create notebook with tabs
         notebook = ttk.Notebook(self.editor_window)
         notebook.bind("<<NotebookTabChanged>>", self._on_editor_notebook_tab_changed)
         notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -1963,14 +1997,12 @@ class App(ttk.Window):
             notebook.add(container, text=tab_text)
             creation_func(inner_frame)
             
-        # Create editor tabs
         create_tab("clothing_types_tab", self._create_clothing_types_editor)
         create_tab("tags_tab", self._create_tag_mapping_editor)
         create_tab("colors_tab", self._create_colors_editor)
         create_tab("backgrounds_tab", self._create_backgrounds_editor)
         create_tab("general_settings_tab", self._create_general_settings_editor)
         
-        # Set cleanup handler
         self.editor_window.protocol("WM_DELETE_WINDOW", self._on_editor_close)
 
     def _on_editor_close(self):
@@ -2113,7 +2145,6 @@ class App(ttk.Window):
             command=self._editor_delete_type
         ).pack(side=tk.LEFT, padx=5)
         
-        # Initialize listbox
         self._editor_refresh_type_listbox()
 
     def _editor_refresh_type_listbox(self, preserve_selection=True):
@@ -2152,7 +2183,6 @@ class App(ttk.Window):
             
         type_name = self.type_listbox.get(selection[0])
         if type_name == self.lang.get("new_button", "➕ New"):
-            # Clear fields for new item
             self.editor_type_name_entry.delete(0, tk.END)
             self.editor_fields_entry.delete(0, tk.END)
             self._editor_rebuild_type_tag_checkboxes([])
@@ -2163,12 +2193,10 @@ class App(ttk.Window):
             
             type_data = self.backend.templates.get(type_name, {})
             
-            # Update fields
             fields = type_data.get("fields", [])
             self.editor_fields_entry.delete(0, tk.END)
             self.editor_fields_entry.insert(tk.END, ", ".join(fields))
             
-            # Update default tags
             default_tags = type_data.get("default_tags", [])
             self._editor_rebuild_type_tag_checkboxes(default_tags)
             
@@ -2177,14 +2205,12 @@ class App(ttk.Window):
 
     def _editor_rebuild_type_tag_checkboxes(self, current_defaults):
         """Rebuild the tag checkboxes in the clothing type editor."""
-        # Clear existing checkboxes
         for widget in self.editor_default_tags_frame.winfo_children():
             widget.destroy()
             
         self.editor_type_tag_vars.clear()
         self.editor_type_tag_checkbuttons.clear()
         
-        # Get all tags (except color tags)
         all_tags = [tag for tag in self.backend.hashtag_mapping.keys() 
                    if not tag.endswith(" color")]
         sorted_tags = sorted(all_tags)
@@ -2195,7 +2221,6 @@ class App(ttk.Window):
             list(range(cols)), weight=1
         )
         
-        # Create checkboxes
         row, col = 0, 0
         for tag in sorted_tags:
             var = tk.BooleanVar(value=(tag in current_defaults))
@@ -2209,7 +2234,6 @@ class App(ttk.Window):
             if col == 0:
                 row += 1
                 
-        # Update canvas scrollregion
         self.editor_default_tags_frame.update_idletasks()
         self._update_canvas_scrollregion(self.editor_type_tags_canvas)
         self.editor_type_tags_canvas.yview_moveto(0)
@@ -2246,7 +2270,6 @@ class App(ttk.Window):
         for i in range(cols):
             self.editor_default_tags_frame.grid_columnconfigure(i, weight=(1 if i < num_cols_needed else 0))
             
-        # Update canvas
         self.editor_default_tags_frame.update_idletasks()
         self._update_canvas_scrollregion(self.editor_type_tags_canvas)
         self.editor_type_tags_canvas.yview_moveto(0)
@@ -2265,14 +2288,11 @@ class App(ttk.Window):
         # Parse fields from comma-separated string
         fields = [f.strip() for f in self.editor_fields_entry.get().strip().split(",") if f.strip()]
         
-        # Get selected default tags
         selected_def_tags = [tag for tag, var in self.editor_type_tag_vars.items() if var.get()]
         
-        # Update templates data
         current_templates = self.backend.templates.copy()
         current_templates[type_name] = {"fields": fields, "default_tags": selected_def_tags}
         
-        # Save to backend
         if self.backend.save_templates_config(current_templates):
             self._editor_refresh_type_listbox()
             self._update_clothing_type_options()
@@ -2316,17 +2336,14 @@ class App(ttk.Window):
             confirm_msg, 
             parent=self.editor_window
         ):
-            # Remove from templates
             current_templates = self.backend.templates.copy()
             if type_name in current_templates:
                 del current_templates[type_name]
                 if self.backend.save_templates_config(current_templates):
-                    # Clear form fields
                     self.editor_type_name_entry.delete(0, tk.END)
                     self.editor_fields_entry.delete(0, tk.END)
                     self._editor_rebuild_type_tag_checkboxes([])
                     
-                    # Update UI
                     self._editor_refresh_type_listbox()
                     self._update_clothing_type_options()
                     self.refresh_left_controls_display()
@@ -2423,7 +2440,6 @@ class App(ttk.Window):
             command=self._editor_delete_tag
         ).pack(side=tk.LEFT, padx=5)
         
-        # Initialize listbox
         self._editor_refresh_tag_listbox()
 
     def _editor_refresh_tag_listbox(self, preserve_selection=True):
@@ -2460,7 +2476,6 @@ class App(ttk.Window):
             
         tag = self.tag_editor_listbox.get(selection[0])
         if tag == self.lang.get("new_button", "➕ New"):
-            # Clear fields for new item
             self.editor_tag_entry.delete(0, tk.END)
             self.editor_hashtags_entry.delete(0, tk.END)
         else:
@@ -2501,14 +2516,12 @@ class App(ttk.Window):
             )
             return
             
-        # Update hashtag mapping
         current_mapping = self.backend.hashtag_mapping.copy()
         current_mapping[tag] = hashtags
         
-        # Save to backend
         if self.backend.save_hashtag_mapping_config(current_mapping):
             self._editor_refresh_tag_listbox()
-            self._create_tag_checkboxes()  # Update main UI tag checkboxes
+            self._create_tag_checkboxes()
             self.refresh_left_controls_display()
             
             # If tags editor is open, refresh its display
@@ -2554,16 +2567,13 @@ class App(ttk.Window):
             confirm_msg, 
             parent=self.editor_window
         ):
-            # Remove from hashtag mapping
             current_mapping = self.backend.hashtag_mapping.copy()
             if tag in current_mapping:
                 del current_mapping[tag]
                 if self.backend.save_hashtag_mapping_config(current_mapping):
-                    # Clear form fields
                     self.editor_tag_entry.delete(0, tk.END)
                     self.editor_hashtags_entry.delete(0, tk.END)
                     
-                    # Update UI
                     self._editor_refresh_tag_listbox()
                     self._create_tag_checkboxes()
                     self.refresh_left_controls_display()
@@ -2671,7 +2681,6 @@ class App(ttk.Window):
             command=self._editor_delete_color
         ).pack(side=tk.LEFT, padx=5)
         
-        # Initialize listbox
         self._editor_refresh_color_listbox()
 
     def _editor_refresh_color_listbox(self, preserve_selection=True):
@@ -2709,7 +2718,6 @@ class App(ttk.Window):
                 
         color_tag = self.color_editor_listbox.get(selection[0])
         if color_tag == self.lang.get("new_button", "➕ New"):
-            # Clear fields for new item
             self.editor_color_entry.delete(0, tk.END)
             self.editor_color_hashtags_entry.delete(0, tk.END)
             self.editor_color_preview.config(background="#ffffff")
@@ -2723,7 +2731,6 @@ class App(ttk.Window):
             self.editor_color_hashtags_entry.delete(0, tk.END)
             self.editor_color_hashtags_entry.insert(tk.END, ", ".join(hashtags))
             
-            # Set preview color
             preview_color = self._get_color_from_name(display_name)
             self.editor_color_preview.config(background=preview_color)
                 
@@ -2758,14 +2765,12 @@ class App(ttk.Window):
             )
             return
             
-        # Update hashtag mapping
         current_mapping = self.backend.hashtag_mapping.copy()
         current_mapping[color_tag] = hashtags
         
-        # Save to backend
         if self.backend.save_hashtag_mapping_config(current_mapping):
             self._editor_refresh_color_listbox()
-            self._create_color_checkboxes()  # Update main UI color checkboxes
+            self._create_color_checkboxes()
             self.refresh_left_controls_display()
                 
             messagebox.showinfo(
@@ -2796,7 +2801,6 @@ class App(ttk.Window):
         if color_tag == self.lang.get("new_button", "➕ New"):
             return
                 
-        # Get display name for messages
         color_name = color_tag.replace(" color", "")
         
         # Confirm deletion
@@ -2810,18 +2814,15 @@ class App(ttk.Window):
             confirm_msg, 
             parent=self.editor_window
         ):
-            # Remove from hashtag mapping
             current_mapping = self.backend.hashtag_mapping.copy()
             if color_tag in current_mapping:
                 del current_mapping[color_tag]
                 if self.backend.save_hashtag_mapping_config(current_mapping):
-                    # Clear form fields
                     self.editor_color_entry.delete(0, tk.END)
                     self.editor_color_hashtags_entry.delete(0, tk.END)
                     
-                    # Update UI
                     self._editor_refresh_color_listbox()
-                    self._create_color_checkboxes()  # Update main UI color checkboxes
+                    self._create_color_checkboxes()
                     self.refresh_left_controls_display()
                         
                     messagebox.showinfo(
@@ -2859,7 +2860,6 @@ class App(ttk.Window):
         ).grid(row=row_num, column=0, sticky="w", pady=(0, 10))
         row_num += 1
         
-        # Add Background Files button
         add_files_frame = ttk.Frame(parent)
         add_files_frame.grid(row=row_num, column=0, sticky="ew", pady=(0, 5))
         add_files_frame.grid_columnconfigure(0, weight=1)
@@ -2872,7 +2872,6 @@ class App(ttk.Window):
         
         row_num += 1
                 
-        # Add backgrounds from folder section
         frame_select = ttk.Frame(parent)
         frame_select.grid(row=row_num, column=0, sticky="ew", pady=(0, 10))
         row_num += 1
@@ -2925,7 +2924,6 @@ class App(ttk.Window):
         
         row_num += 1
         
-        # Remove Selected button
         remove_frame = ttk.Frame(parent)
         remove_frame.grid(row=row_num, column=0, sticky="ew", pady=(5, 0))
         
@@ -3070,7 +3068,6 @@ class App(ttk.Window):
             )
             return
             
-        # Get the basename from the listbox
         basename = self.editor_bg_listbox.get(selection[0])
         
         # Find the full path in the backend.backgrounds list
@@ -3145,7 +3142,6 @@ class App(ttk.Window):
         self.editor_lang_combo.grid(row=row_num, column=1, sticky="w", pady=5)
         row_num += 1
         
-        # Create mapping of display names to language codes
         self.editor_lang_display_to_code = {v: k for k, v in lang_options.items()}
         
         # Units selector
@@ -3217,7 +3213,6 @@ class App(ttk.Window):
         self.editor_h_height_entry.grid(row=3, column=3, sticky="w")
         self.editor_h_height_entry.insert(tk.END, str(self.backend.canvas_height_h))
         
-        # Save button for all settings
         save_btn_frame = ttk.Frame(parent)
         save_btn_frame.grid(row=row_num, column=0, columnspan=2, sticky="ew", pady=20)
         save_btn_frame.grid_columnconfigure(0, weight=1)
@@ -3232,16 +3227,13 @@ class App(ttk.Window):
         """Save all general settings."""
         current_config = self.backend.config_data.copy()
         
-        # Get language code from selected display name
         selected_display_name = self.editor_lang_var.get()
         selected_lang_code = self.editor_lang_display_to_code.get(selected_display_name, "en")
         current_config["selected_language"] = selected_lang_code
         
-        # Get other settings
         current_config["units"] = self.editor_units_entry.get().strip() or "cm"
         current_config["output_prefix"] = self.editor_output_prefix_entry.get().strip() or "mla_"
         
-        # Save canvas dimensions
         try:
             current_config["canvas_width_v"] = int(self.editor_v_width_entry.get().strip())
             current_config["canvas_height_v"] = int(self.editor_v_height_entry.get().strip())
@@ -3255,7 +3247,6 @@ class App(ttk.Window):
             )
             return
         
-        # Save to backend
         if self.backend.save_main_config(current_config):
             messagebox.showinfo(
                 self.lang.get("success", "Success"), 
@@ -3277,7 +3268,6 @@ class App(ttk.Window):
 if __name__ == "__main__":
     try:
         app = App()
-        # Check if initialization was successful before running mainloop
         if hasattr(app, 'backend') and app.backend.lang:
             app.mainloop()
         # If init failed, error messages were already shown
@@ -3289,5 +3279,5 @@ if __name__ == "__main__":
             messagebox.showerror("Critical Startup Error", f"Application failed to initialize:\n{e}")
             root.destroy()
         except Exception as tk_e:
-            print(f"CRITICAL STARTUP ERROR (TKINTER FAILED): {e}, TK Error: {tk_e}")
+            pass
         sys.exit(1)
