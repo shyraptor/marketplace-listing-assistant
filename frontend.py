@@ -608,6 +608,34 @@ class App(ttk.Window):
         self.slider_scale.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
         self.label_scale = ttk.Label(adj_frame, text="1.0×")
         self.label_scale.grid(row=row, column=2, sticky="w", padx=5, pady=1)
+        row += 1
+        
+        # Rotation controls
+        ttk.Label(adj_frame, text=self.lang.get("rotation_label", "Rotation:")).grid(
+            row=row, column=0, sticky="w", pady=2
+        )
+        rotation_frame = ttk.Frame(adj_frame)
+        rotation_frame.grid(row=row, column=1, sticky="w", padx=5, pady=2)
+        
+        # Rotation angle display
+        self.rotation_angle_var = tk.StringVar(value="0°")
+        self.rotation_label = ttk.Label(rotation_frame, textvariable=self.rotation_angle_var, width=5)
+        self.rotation_label.grid(row=0, column=0, padx=(0, 10))
+        
+        # Rotation buttons
+        ttk.Button(
+            rotation_frame,
+            text="⟲ Left",
+            command=self._rotate_left,
+            width=8
+        ).grid(row=0, column=1, padx=2)
+        
+        ttk.Button(
+            rotation_frame,
+            text="⟳ Right", 
+            command=self._rotate_right,
+            width=8
+        ).grid(row=0, column=2, padx=2)
 
     # ====================== DESCRIPTION TAB ======================
     def _create_description_tab(self, parent):
@@ -1243,6 +1271,10 @@ class App(ttk.Window):
             self.label_hof.config(text=f"{hof_val:+.2f}")
             self.label_scale.config(text=f"{scale_val:.1f}×")
             
+            # Set rotation angle
+            rotation_angle = item.get("rotation_angle", 0)
+            self.rotation_angle_var.set(f"{rotation_angle}°")
+            
             # Set checkbox states
             skip_bg = item.get("skip_bg_removal", False)
             self.skip_bg_removal_var.set(skip_bg)
@@ -1280,6 +1312,7 @@ class App(ttk.Window):
             self.bg_ratio_var.set(False)
             self._update_bg_selector_options()
             self.bg_select_var.set(self.lang.get("auto_background_option", "Auto (Default)"))
+            self.rotation_angle_var.set("0°")
         
         # Allow a brief delay to ensure all controls are updated before re-enabling events
         self.after(50, self._reenable_events)
@@ -1288,6 +1321,32 @@ class App(ttk.Window):
     def _reenable_events(self):
         """Re-enable event handling after populating controls."""
         self._suppress_events = False
+    
+    def _rotate_left(self):
+        """Rotate the selected image 90 degrees counter-clockwise."""
+        if self._suppress_events:
+            return
+        
+        current_angle_str = self.rotation_angle_var.get()
+        current_angle = int(current_angle_str.rstrip('°'))
+        new_angle = (current_angle - 90) % 360
+        self.rotation_angle_var.set(f"{new_angle}°")
+        
+        # Apply the rotation
+        self._process_with_indicator(self.ui_apply_adjustments)
+    
+    def _rotate_right(self):
+        """Rotate the selected image 90 degrees clockwise."""
+        if self._suppress_events:
+            return
+        
+        current_angle_str = self.rotation_angle_var.get()
+        current_angle = int(current_angle_str.rstrip('°'))
+        new_angle = (current_angle + 90) % 360
+        self.rotation_angle_var.set(f"{new_angle}°")
+        
+        # Apply the rotation
+        self._process_with_indicator(self.ui_apply_adjustments)
         
     def _on_global_use_solid_bg_change(self):
         """Handle global solid background setting change."""
@@ -1686,6 +1745,10 @@ class App(ttk.Window):
         hof = float(self.slider_hof.get())
         scale = float(self.slider_scale.get())
         
+        # Get rotation angle
+        rotation_angle_str = self.rotation_angle_var.get()
+        rotation_angle = int(rotation_angle_str.rstrip('°'))
+        
         # Get other settings
         selected_bg_display = self.bg_select_var.get()
         user_bg_path = self.bg_combobox_map.get(selected_bg_display)
@@ -1714,7 +1777,8 @@ class App(ttk.Window):
             is_horizontal=is_horizontal,
             skip_bg_removal=skip_bg_removal,
             use_solid_bg=use_solid_bg,
-            force_reprocess=force_reprocess
+            force_reprocess=force_reprocess,
+            rotation_angle=rotation_angle
         )
         
         if new_image:

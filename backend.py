@@ -55,6 +55,7 @@ class ProjectData:
         self.generated_description = "" # Final description text
         self.owner_letter = ""         # Owner initial for storage code
         self.storage_letter = ""       # Storage code letter
+        self.project_bg_path = None    # Project-wide background path
 
     def __repr__(self):
         return f"<ProjectData '{self.name}' ({len(self.clothing_images)} images)>"
@@ -89,6 +90,7 @@ class Backend:
             self.projects = []
             self.current_project_index = -1
             self.temp_extract_dir = None
+            self._dominant_color_cache = {}  # Cache for dominant colors
         else:
             print("Backend initialization incomplete due to language loading failure.")
 
@@ -738,7 +740,8 @@ class Backend:
                 "scale": scale,
                 "is_horizontal": is_horizontal,
                 "use_solid_bg": self.use_solid_bg,  # update to current global setting
-                "skip_bg_removal": False
+                "skip_bg_removal": False,
+                "rotation_angle": 0  # Initialize rotation angle
             }
             if image_index < len(proj.processed_images):
                 proj.processed_images[image_index].update(processed_data)
@@ -781,7 +784,8 @@ class Backend:
             output_data = remove(input_data)
             
             result = Image.open(BytesIO(output_data))
-            result = result.convert("RGBA")
+            if result.mode != 'RGBA':
+                result = result.convert("RGBA")
             
             # Scale back to original size if needed
             if scale_factor < 1.0:
@@ -790,7 +794,9 @@ class Backend:
             return result
         except Exception as e:
             print(f"BG Removal Err: {e}")
-            return pil_image.convert("RGBA")
+            if pil_image.mode != 'RGBA':
+                return pil_image.convert("RGBA")
+            return pil_image
 
     def _compute_dominant_color(self, image, ignore_transparent=True):
         """
@@ -804,7 +810,16 @@ class Backend:
             tuple: (r, g, b) color values
         """
         try:
-            image = image.convert("RGBA")
+            # Create a cache key from image properties
+            cache_key = (id(image), image.size, ignore_transparent)
+            
+            # Check cache first
+            if cache_key in self._dominant_color_cache:
+                return self._dominant_color_cache[cache_key]
+            
+            if image.mode != 'RGBA':
+                image = image.convert("RGBA")
+                
             small = image.resize((50, 50), Image.Resampling.LANCZOS)
             pixels = list(small.getdata())
             r, g, b, count = 0, 0, 0, 0
@@ -817,9 +832,21 @@ class Backend:
                     count += 1
                     
             if count == 0:
-                return (128, 128, 128)
+                color = (128, 128, 128)
+            else:
+                color = (r // count, g // count, b // count)
                 
-            return (r // count, g // count, b // count)
+            # Store in cache
+            self._dominant_color_cache[cache_key] = color
+            
+            # Limit cache size to prevent memory issues
+            if len(self._dominant_color_cache) > 100:
+                # Remove oldest entries
+                keys_to_remove = list(self._dominant_color_cache.keys())[:20]
+                for key in keys_to_remove:
+                    del self._dominant_color_cache[key]
+                
+            return color
         except Exception as e:
             print(f"Dominant Color Err: {e}")
             return (128, 128, 128)
@@ -827,6 +854,7 @@ class Backend:
     def _color_distance(self, c1, c2):
         """Calculates Euclidean distance between two RGB colors."""
         return math.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
+    
 
     def _complementary_color(self, color):
         """
@@ -899,8 +927,59 @@ class Backend:
                 print(f"BG Candidate Err {bg_path}: {e}")
                 
         return best_bg_path
+    
+    def _find_best_background_for_project(self, cutout_images):
+        """
+        Finds the best background for an entire project based on average color of all cutouts.
+        
+        Args:
+            cutout_images: List of RGBA images with transparent backgrounds
+            
+        Returns:
+            str: Path to the best background image or None if none available
+        """
+        if not self.backgrounds or not cutout_images:
+            return None
+            
+        # Calculate average color across all cutout images
+        total_r, total_g, total_b = 0, 0, 0
+        count = 0
+        
+        for cutout in cutout_images:
+            try:
+                color = self._compute_dominant_color(cutout)
+                total_r += color[0]
+                total_g += color[1]
+                total_b += color[2]
+                count += 1
+            except Exception as e:
+                print(f"Error computing color for cutout: {e}")
+                
+        if count == 0:
+            return None
+            
+        # Average color of all items
+        avg_item_color = (total_r // count, total_g // count, total_b // count)
+        
+        # Find background with best contrast to average
+        best_bg_path = None
+        max_dist = -1
+        
+        for bg_path in self.backgrounds:
+            try:
+                with Image.open(bg_path) as bg_img:
+                    avg_bg_color = self._compute_dominant_color(bg_img, ignore_transparent=False)
+                    dist = self._color_distance(avg_item_color, avg_bg_color)
+                    
+                    if dist > max_dist:
+                        max_dist = dist
+                        best_bg_path = bg_path
+            except Exception as e:
+                print(f"BG Candidate Err {bg_path}: {e}")
+                
+        return best_bg_path
 
-    def fit_clothing(self, cutout_image, background_image, vof, hof, scale, is_horizontal=False, use_solid_bg=None):
+    def fit_clothing(self, cutout_image, background_image, vof, hof, scale, is_horizontal=False, use_solid_bg=None, rotation_angle=0):
         """
         Fits a cutout clothing image onto a background.
         
@@ -912,6 +991,7 @@ class Backend:
             scale: Scale factor
             is_horizontal: Whether to use horizontal canvas dimensions
             use_solid_bg: Override for solid background setting
+            rotation_angle: Rotation angle in degrees (0, 90, 180, 270)
             
         Returns:
             PIL.Image: Final composed image
@@ -925,6 +1005,10 @@ class Backend:
             
             if content.size[0] == 0 or content.size[1] == 0:
                 return Image.new("RGBA", (target_w, target_h), (0,0,0,0))
+            
+            # Apply rotation if needed
+            if rotation_angle != 0:
+                content = content.rotate(-rotation_angle, expand=True)
                 
             cw, ch = content.size
             scale_factor_w = target_w / cw if cw > 0 else 1
@@ -941,7 +1025,10 @@ class Backend:
             if background_image and not image_use_solid_bg:
                 bg_to_use = background_image.copy()
                 bg_resized = bg_to_use.resize((target_w, target_h), Image.Resampling.LANCZOS)
-                final_canvas = bg_resized.convert("RGBA")
+                if bg_resized.mode != 'RGBA':
+                    final_canvas = bg_resized.convert("RGBA")
+                else:
+                    final_canvas = bg_resized
             else:
                 dom_color = self._compute_dominant_color(content_resized)
                 comp_color = self._complementary_color(dom_color)
@@ -960,6 +1047,7 @@ class Backend:
             paste_x = base_x + x_offset
             paste_y = base_y + y_offset
             
+            # Composite: Background -> Object
             final_canvas.paste(content_resized, (paste_x, paste_y), content_resized)
             return final_canvas
         except Exception as e:
@@ -983,6 +1071,9 @@ class Backend:
         use_image_bg = not self.use_solid_bg and self.backgrounds
         errors = []
         current_global_setting = self.use_solid_bg  # global setting
+        
+        # First pass: Extract all images (no_bg)
+        all_no_bg_images = []
 
         for idx, item in enumerate(proj.clothing_images):
             path = item["path"]
@@ -998,38 +1089,29 @@ class Backend:
                 # Only force re‑processing if there is no individual override and the stored use_solid_bg is out‑of‑date.
                 if (not processed_item.get("individual_override", False)) and (processed_item.get("use_solid_bg", None) != current_global_setting):
                     needs_processing = True
+                # Collect existing no_bg images
+                if processed_item.get("no_bg") is not None:
+                    all_no_bg_images.append(processed_item["no_bg"])
                 
             if needs_processing:
                 try:
                     no_bg = self.remove_background(original_img)
-                    bg_path_auto = None
-                    bg_source = None
-                    if use_image_bg:
-                        bg_path_auto = self._find_best_background(no_bg)
-                        if bg_path_auto:
-                            try:
-                                bg_source = Image.open(bg_path_auto)
-                            except Exception as e_bg:
-                                print(f"BG Load Err: {bg_path_auto}: {e_bg}")
-                                bg_path_auto = None
-                    vof = DEFAULT_VERTICAL_OFFSET
-                    hof = DEFAULT_HORIZONTAL_OFFSET
-                    scale = DEFAULT_SIZE_SCALE
-                    is_horizontal = False
-                    final_img = self.fit_clothing(no_bg, bg_source, vof, hof, scale, is_horizontal)
-                        
+                    all_no_bg_images.append(no_bg)
+                    
+                    # Store temporarily without finalizing
                     processed_data = {
                         "path": path,
                         "no_bg": no_bg,
-                        "bg_path": bg_path_auto,
+                        "bg_path": None,
                         "user_bg_path": None,
-                        "processed": final_img,
-                        "vof": vof,
-                        "hof": hof,
-                        "scale": scale,
-                        "is_horizontal": is_horizontal,
-                        "use_solid_bg": self.use_solid_bg,  # current global setting
-                        "skip_bg_removal": False
+                        "processed": None,  # Will be finalized later
+                        "vof": DEFAULT_VERTICAL_OFFSET,
+                        "hof": DEFAULT_HORIZONTAL_OFFSET,
+                        "scale": DEFAULT_SIZE_SCALE,
+                        "is_horizontal": False,
+                        "use_solid_bg": self.use_solid_bg,
+                        "skip_bg_removal": False,
+                        "rotation_angle": 0
                     }
                         
                     if idx < len(proj.processed_images):
@@ -1037,13 +1119,47 @@ class Backend:
                     else:
                         proj.processed_images.append(processed_data)
                 except Exception as e:
-                    errors.append(f"Proc Err ({os.path.basename(path)}): {e}")
+                    errors.append(f"BG Removal Err ({os.path.basename(path)}): {e}")
+        
+        # Second pass: Select project-wide background based on all extracted images
+        if use_image_bg and all_no_bg_images:
+            proj.project_bg_path = self._find_best_background_for_project(all_no_bg_images)
+        else:
+            proj.project_bg_path = None
+            
+        # Third pass: Apply the project background to all images
+        bg_source = None
+        if proj.project_bg_path:
+            try:
+                bg_source = Image.open(proj.project_bg_path)
+            except Exception as e:
+                print(f"Failed to load project background {proj.project_bg_path}: {e}")
+                bg_source = None
+                
+        # Now finalize all processed images with the same background
+        for idx, item in enumerate(proj.processed_images):
+            if item.get("processed") is None:  # Only process unfinalized images
+                try:
+                    no_bg = item["no_bg"]
+                    item["bg_path"] = proj.project_bg_path
+                    
+                    # Fit clothing with project background
+                    final_img = self.fit_clothing(
+                        no_bg, bg_source, 
+                        item["vof"], item["hof"], item["scale"], 
+                        item["is_horizontal"],
+                        item.get("use_solid_bg", self.use_solid_bg),
+                        item.get("rotation_angle", 0)
+                    )
+                    item["processed"] = final_img
+                except Exception as e:
+                    errors.append(f"Finalization error for image {idx}: {e}")
                         
         return True, errors
 
     def apply_image_adjustments(self, project_index, image_index, vof, hof, scale, 
                             user_bg_path=None, is_horizontal=False, skip_bg_removal=False, 
-                            use_solid_bg=None, force_reprocess=False):
+                            use_solid_bg=None, force_reprocess=False, rotation_angle=0):
         """
         Applies adjustments to a processed image.
         
@@ -1073,6 +1189,7 @@ class Backend:
         item["user_bg_path"] = user_bg_path
         item["is_horizontal"] = is_horizontal
         item["skip_bg_removal"] = skip_bg_removal
+        item["rotation_angle"] = rotation_angle
 
         # Update the individual solid background setting and mark override if it differs from the global default.
         if use_solid_bg is not None:
@@ -1093,7 +1210,10 @@ class Backend:
                     break
             if orig_image:
                 if skip_bg_removal:
-                    no_bg = orig_image.convert("RGBA")
+                    if orig_image.mode != 'RGBA':
+                        no_bg = orig_image.convert("RGBA")
+                    else:
+                        no_bg = orig_image
                 else:
                     no_bg = self.remove_background(orig_image)
                 item["no_bg"] = no_bg
@@ -1115,7 +1235,7 @@ class Backend:
 
         try:
             new_final = self.fit_clothing(no_bg, bg_source, vof, hof, scale, is_horizontal,
-                                        item.get("use_solid_bg", self.use_solid_bg))
+                                        item.get("use_solid_bg", self.use_solid_bg), rotation_angle)
             item["processed"] = new_final
             return new_final
         except Exception as e:
@@ -1166,7 +1286,7 @@ class Backend:
                         clean_ht = '#' + clean_ht
                     hashtags.add(clean_ht.lower())
                     
-        custom_list = [c.strip() for c in proj.custom_hashtags.split(',') if c.strip()]
+        custom_list = [c.strip() for c in proj.custom_hashtags.split(',') if c.strip()] if proj.custom_hashtags else []
         
         for ctag in custom_list:
             clean_ctag = ctag.replace(" ", "_")

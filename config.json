@@ -3,8 +3,9 @@
   "use_solid_bg": false,
   "units": "cm",
   "output_prefix": "mla_",
-  "canvas_width_v": 600,
-  "canvas_height_v": 800,
-  "canvas_width_h": 800,
-  "canvas_height_h": 600
+  "canvas_width_v": 1200,
+  "canvas_height_v": 1600,
+  "canvas_width_h": 1600,
+  "canvas_height_h": 1200,
+  "halo_radius": 20
 }
