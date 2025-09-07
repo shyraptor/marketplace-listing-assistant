@@ -81,10 +81,7 @@ class App(ttk.Window):
         self._create_main_gui()
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)
 
-        # Initialize the first project if none exists
-        if self.backend.get_project_count() == 0:
-            new_index = self.backend.add_new_project(self.lang.get("new_project", "New Project"))
-            self.backend.set_current_project_index(new_index)
+        # Don't automatically create first project - start with 0 projects
 
         self._update_project_label()
         self.refresh_all_displays()
@@ -602,11 +599,11 @@ class App(ttk.Window):
             to=2.0, 
             orient="horizontal",
             length=200,
-            value=1.0,
+            value=0.85,
             command=self._on_slider_change
         )
         self.slider_scale.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
-        self.label_scale = ttk.Label(adj_frame, text="1.0×")
+        self.label_scale = ttk.Label(adj_frame, text="0.85×")
         self.label_scale.grid(row=row, column=2, sticky="w", padx=5, pady=1)
         row += 1
         
@@ -1303,10 +1300,10 @@ class App(ttk.Window):
             # Clear all fields if no image selected
             self.slider_vof.set(0.0)
             self.slider_hof.set(0.0)
-            self.slider_scale.set(1.0)
+            self.slider_scale.set(0.85)
             self.label_vof.config(text="+0.00")
             self.label_hof.config(text="+0.00")
-            self.label_scale.config(text="1.0×")
+            self.label_scale.config(text="0.85×")
             self.skip_bg_removal_var.set(False)
             self.item_use_solid_bg_var.set(False)
             self.bg_ratio_var.set(False)
@@ -1492,12 +1489,11 @@ class App(ttk.Window):
         """Load images into the current project."""
         idx = self.backend.get_current_project_index()
         if idx < 0:
-            messagebox.showwarning(
-                self.lang.get("warning", "Warning"), 
-                self.lang.get("no_project", "No project loaded or selected."), 
-                parent=self
-            )
-            return
+            # No projects exist - create a new one automatically
+            new_idx = self.backend.add_new_project(self.lang.get("new_project", "New Project"))
+            self.backend.set_current_project_index(new_idx)
+            self.refresh_all_displays()
+            idx = new_idx
             
         paths = filedialog.askopenfilenames(
             title=self.lang.get("load_images_button", "➕ Add Images to Current"),
@@ -1901,7 +1897,7 @@ class App(ttk.Window):
         if not base_folder:
             return
             
-        self.ui_generate_current_description()  # Ensure description is current
+        self._save_current_form_to_backend()  # Save current edits without regenerating
         
         self.config(cursor="watch")
         self.update_idletasks()

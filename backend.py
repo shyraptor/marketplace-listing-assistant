@@ -35,7 +35,7 @@ DEFAULT_CANVAS_WIDTH_H, DEFAULT_CANVAS_HEIGHT_H = 800, 600  # Horizontal canvas
 
 DEFAULT_VERTICAL_OFFSET = 0.0
 DEFAULT_HORIZONTAL_OFFSET = 0.0
-DEFAULT_SIZE_SCALE = 1.0
+DEFAULT_SIZE_SCALE = 0.85
 
 # ====================== PROJECT DATA CLASS ======================
 class ProjectData:
@@ -1265,7 +1265,7 @@ class Backend:
             val_str = val.strip()
             if val_str:
                 field_display = field.replace("_", " ").replace("-", " ").capitalize()
-                measurement_lines.append(f"{field_display}: {val_str}{self.units}")
+                measurement_lines.append(f"{field_display}: {val_str} {self.units}")
                 
         measurement_desc = "\n".join(measurement_lines)
         hashtags = set()
