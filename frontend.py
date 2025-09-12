@@ -84,6 +84,54 @@ class App(ttk.Window):
         self._update_project_label()
         self.refresh_all_displays()
 
+    def _create_debounced_handler(self, callback, delay=300):
+        """
+        Create a debounced event handler that delays execution.
+        
+        Args:
+            callback: Function to call after delay
+            delay: Delay in milliseconds
+            
+        Returns:
+            Debounced handler function
+        """
+        timer = [None]
+        
+        def debounced_handler(event=None):
+            # Cancel previous timer
+            if timer[0] is not None:
+                self.after_cancel(timer[0])
+            
+            # Schedule new timer
+            timer[0] = self.after(delay, lambda: callback(event))
+        
+        return debounced_handler
+
+    def _is_widget_visible(self, widget, canvas):
+        """
+        Check if a widget is visible in the canvas viewport.
+        
+        Args:
+            widget: Widget to check
+            canvas: Canvas containing the widget
+            
+        Returns:
+            bool: True if widget is visible
+        """
+        try:
+            # Get canvas viewport
+            canvas_top = canvas.canvasy(0)
+            canvas_bottom = canvas.canvasy(canvas.winfo_height())
+            
+            # Get widget position
+            widget_y = widget.winfo_y()
+            widget_height = widget.winfo_reqheight()
+            
+            # Check if widget is in viewport
+            return not (widget_y + widget_height < canvas_top or widget_y > canvas_bottom)
+        except:
+            return True  # Default to visible if can't determine
+
     # ====================== WINDOW LIFECYCLE ======================
     def _on_app_close(self):
         """Handle application closing: cleanup and destroy."""
@@ -405,7 +453,11 @@ class App(ttk.Window):
         self.tag_search_var = tk.StringVar()
         self.tag_search_entry = ttk.Entry(tags_lframe, textvariable=self.tag_search_var, width=30)
         self.tag_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        self.tag_search_entry.bind("<KeyRelease>", self._filter_tags_display)
+        
+        # Use debounced handler for search
+        debounced_filter = self._create_debounced_handler(self._filter_tags_display, delay=200)
+        self.tag_search_entry.bind("<KeyRelease>", debounced_filter)
+        
         self.tag_search_entry.bind("<FocusIn>", 
                                 lambda e: self._on_entry_focus_in(
                                     self.tag_search_entry, 
@@ -444,7 +496,11 @@ class App(ttk.Window):
         self.color_search_var = tk.StringVar()
         self.color_search_entry = ttk.Entry(colors_lframe, textvariable=self.color_search_var, width=30)
         self.color_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        self.color_search_entry.bind("<KeyRelease>", self._filter_colors_display)
+        
+        # Use debounced handler for search
+        debounced_filter = self._create_debounced_handler(self._filter_colors_display, delay=200)
+        self.color_search_entry.bind("<KeyRelease>", debounced_filter)
+        
         self.color_search_entry.bind("<FocusIn>", 
                                   lambda e: self._on_entry_focus_in(
                                       self.color_search_entry, 
@@ -1112,13 +1168,17 @@ class App(ttk.Window):
             self.storage_entry.insert(tk.END, storage_val)
 
     def refresh_right_display(self):
-        """Refresh the right panel display with current project data."""
+        """Refresh the right panel display with optimized widget recycling and thumbnail caching."""
         proj = self.backend.get_current_project()
         
-        for widget in self.img_display_frame.winfo_children():
-            widget.destroy()
-            
+        # Store existing widgets for recycling
+        existing_widgets = self.proc_image_widgets.copy() if hasattr(self, 'proc_image_widgets') else []
         self.proc_image_widgets = []
+        
+        # Hide all widgets initially instead of destroying them
+        for child in self.img_display_frame.winfo_children():
+            child.grid_forget()
+        
         display_placeholder = True
         previous_selection = self.selected_processed_index
         
@@ -1131,71 +1191,117 @@ class App(ttk.Window):
             # Configure grid columns
             for c in range(max_cols):
                 self.img_display_frame.grid_columnconfigure(c, weight=1, uniform="imgCol")
-                
+            
+            # Reuse or create widgets
+            widget_pool = {w['index']: w for w in existing_widgets if 'index' in w}
+            
             for i, img_data in enumerate(proj.clothing_images):
-                item_frame = ttk.Frame(self.img_display_frame, relief="groove", borderwidth=1, padding=5)
-                item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
-                item_frame.grid_columnconfigure(0, weight=1)
-                
-                img_control_frame = ttk.Frame(item_frame)
-                img_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
-                img_control_frame.grid_columnconfigure(0, weight=1)
-                
-                ttk.Button(
-                    img_control_frame, 
-                    text=self.lang.get("remove_image_button", "🗑️"), 
-                    width=3,
-                    command=lambda idx=i: self.ui_remove_image(idx)
-                ).grid(row=0, column=1, sticky="e")
-                
-                # Display original image thumbnail
-                try:
-                    orig_thumb = img_data["image"].copy()
-                    orig_thumb.thumbnail((150, 150))
-                    orig_photo = ImageTk.PhotoImage(orig_thumb)
-                    orig_lbl = ttk.Label(item_frame, image=orig_photo, cursor="hand2")
-                    orig_lbl.image = orig_photo
-                    orig_lbl.grid(row=0, column=0, pady=(0, 5))
-                    orig_lbl.bind("<Double-Button-1>", lambda e, img=img_data["image"]: self._show_image_popup(img))
-                except Exception as e:
-                    ttk.Label(item_frame, text="Error loading image").grid(row=0, column=0, pady=(0, 5))
+                # Try to reuse existing frame
+                if i in widget_pool and widget_pool[i].get('frame'):
+                    item_frame = widget_pool[i]['frame']
+                    item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
+                else:
+                    item_frame = ttk.Frame(self.img_display_frame, relief="groove", borderwidth=1, padding=5)
+                    item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
+                    item_frame.grid_columnconfigure(0, weight=1)
                     
+                    img_control_frame = ttk.Frame(item_frame)
+                    img_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+                    img_control_frame.grid_columnconfigure(0, weight=1)
+                    
+                    ttk.Button(
+                        img_control_frame, 
+                        text=self.lang.get("remove_image_button", "🗑️"), 
+                        width=3,
+                        command=lambda idx=i: self.ui_remove_image(idx)
+                    ).grid(row=0, column=1, sticky="e")
+                
+                # Display original image thumbnail using cache
+                try:
+                    # Use backend's cached thumbnail method
+                    orig_thumb = self.backend.get_cached_thumbnail(img_data["image"], (150, 150))
+                    orig_photo = ImageTk.PhotoImage(orig_thumb)
+                    
+                    # Check if we can reuse existing label
+                    orig_lbl = None
+                    if i in widget_pool and widget_pool[i].get('orig_label'):
+                        orig_lbl = widget_pool[i]['orig_label']
+                        orig_lbl.configure(image=orig_photo)
+                        orig_lbl.image = orig_photo
+                    else:
+                        orig_lbl = ttk.Label(item_frame, image=orig_photo, cursor="hand2")
+                        orig_lbl.image = orig_photo
+                        orig_lbl.grid(row=0, column=0, pady=(0, 5))
+                        orig_lbl.bind("<Double-Button-1>", lambda e, img=img_data["image"]: self._show_image_popup(img))
+                except Exception as e:
+                    if i not in widget_pool or not widget_pool[i].get('orig_label'):
+                        ttk.Label(item_frame, text="Error loading image").grid(row=0, column=0, pady=(0, 5))
+                
                 # Display processed image if available
                 if i < len(proj.processed_images):
                     proc_item = proj.processed_images[i]
                     try:
                         processed_img = proc_item["processed"]
                         thumb_w, thumb_h = (200, 150) if proc_item.get("is_horizontal", False) else (150, 200)
-                        proc_thumb = processed_img.copy()
-                        proc_thumb.thumbnail((thumb_w, thumb_h))
+                        
+                        # Use cached thumbnail for processed image
+                        proc_thumb = self.backend.get_cached_thumbnail(processed_img, (thumb_w, thumb_h))
                         proc_photo = ImageTk.PhotoImage(proc_thumb)
-                        proc_lbl = ttk.Label(
-                            item_frame, 
-                            image=proc_photo, 
-                            cursor="hand2", 
-                            relief="solid", 
-                            borderwidth=1
-                        )
-                        proc_lbl.image = proc_photo
-                        proc_lbl.grid(row=1, column=0)
-                        proc_lbl.bind("<Button-1>", lambda e, idx=i: self._on_processed_image_click(idx))
-                        proc_lbl.bind("<Double-Button-1>", lambda e, img=processed_img: self._show_image_popup(img))
-                        self.proc_image_widgets.append({"label": proc_lbl, "photo": proc_photo, "index": i})
+                        
+                        # Check if we can reuse existing label
+                        proc_lbl = None
+                        if i in widget_pool and widget_pool[i].get('label'):
+                            proc_lbl = widget_pool[i]['label']
+                            proc_lbl.configure(image=proc_photo)
+                            proc_lbl.image = proc_photo
+                        else:
+                            proc_lbl = ttk.Label(
+                                item_frame, 
+                                image=proc_photo, 
+                                cursor="hand2", 
+                                relief="solid", 
+                                borderwidth=1
+                            )
+                            proc_lbl.image = proc_photo
+                            proc_lbl.grid(row=1, column=0)
+                            proc_lbl.bind("<Button-1>", lambda e, idx=i: self._on_processed_image_click(idx))
+                            proc_lbl.bind("<Double-Button-1>", lambda e, img=processed_img: self._show_image_popup(img))
+                        
+                        self.proc_image_widgets.append({
+                            "label": proc_lbl, 
+                            "photo": proc_photo, 
+                            "index": i,
+                            "frame": item_frame,
+                            "orig_label": orig_lbl if 'orig_lbl' in locals() else None
+                        })
                     except Exception as e:
-                        ttk.Label(item_frame, text="Error loading processed image").grid(row=1, column=0)
+                        if i not in widget_pool or not widget_pool[i].get('label'):
+                            ttk.Label(item_frame, text="Error loading processed image").grid(row=1, column=0)
                 else:
-                    ttk.Label(
-                        item_frame, 
-                        text=self.lang.get("not_processed", "(Not Processed)")
-                    ).grid(row=1, column=0)
-                    
+                    if i not in widget_pool:
+                        ttk.Label(
+                            item_frame, 
+                            text=self.lang.get("not_processed", "(Not Processed)")
+                        ).grid(row=1, column=0)
+                
                 # Move to next column or row
                 col_num = (col_num + 1) % max_cols
                 if col_num == 0:
                     row_num += 1
-                    
+        
+        # Clean up unused widgets
+        used_indices = {w['index'] for w in self.proc_image_widgets if 'index' in w}
+        for widget_data in existing_widgets:
+            if 'index' in widget_data and widget_data['index'] not in used_indices:
+                if 'frame' in widget_data and widget_data['frame']:
+                    widget_data['frame'].destroy()
+        
         # Show placeholder if no images
         if display_placeholder or not proj:
+            # Destroy all widgets if showing placeholder
+            for child in self.img_display_frame.winfo_children():
+                child.destroy()
+            
             msg = (self.lang.get("no_project", "No project loaded or selected.") if not proj else 
                    self.lang.get("no_images_in_project", "No clothing images loaded for this project."))
             ttk.Label(self.img_display_frame, text=msg).grid()
@@ -1203,20 +1309,22 @@ class App(ttk.Window):
         elif self.selected_processed_index is not None and self.selected_processed_index >= len(proj.processed_images):
             self.selected_processed_index = None
         
-        # Force layout update
-        if self.proc_image_widgets:
+        # Force layout update only if needed
+        if self.proc_image_widgets and len(self.proc_image_widgets) != len(existing_widgets):
             self.update_idletasks()
         
         # Highlight the selected image if any
         need_highlight = (self.selected_processed_index is not None and self.proc_image_widgets)
         if need_highlight:
             self._highlight_selected_processed()
-            
+        
         self._populate_adjustment_fields()
         
+        # Update canvas scrollregion only if layout changed
         self.img_display_frame.update_idletasks()
         self._update_canvas_scrollregion(self.img_canvas)
         
+        # Update description text only if it changed
         current_desc_text = self.desc_text.get(1.0, tk.END).strip()
         backend_desc = proj.generated_description if proj else ""
         
@@ -1536,41 +1644,36 @@ class App(ttk.Window):
         self.after(50, execute_operation)
 
     def ui_load_single_project_images(self):
-        """Load images into the current project."""
-        idx = self.backend.get_current_project_index()
-        if idx < 0:
-            # No projects exist - create a new one automatically
-            new_idx = self.backend.add_new_project(self.lang.get("new_project", "New Project"))
-            self.backend.set_current_project_index(new_idx)
-            self.refresh_all_displays()
-            idx = new_idx
-            
+        """Load images into a new project (no naming)."""
         paths = filedialog.askopenfilenames(
-            title=self.lang.get("load_images_button", "➕ Add Images to Current"),
-            filetypes=[("Image Files", "*.png *.jpg *.jpeg *.webp"), ("All Files", "*.*")],
+            title=self.lang.get("select_images", "Select Images"),
+            filetypes=[
+                (self.lang.get("image_files", "Image Files"), "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
+                (self.lang.get("all_files", "All Files"), "*.*")
+            ],
             parent=self
         )
         
         if not paths:
             return
-            
-        success, loaded_count, errors = self.backend.load_single_project_images(idx, paths)
+        
+        # Create project without asking for name
+        success, errors = self.backend.load_single_project_images(paths)
         
         if errors:
             messagebox.showwarning(
                 self.lang.get("warning", "Warning"),
-                f"Loaded {loaded_count} image(s).\nIssues:\n- " + "\n- ".join(errors),
+                self.lang.get("load_errors", "Some images could not be loaded:\n") + "\n".join(errors[:5]),
                 parent=self
             )
-        elif not success and loaded_count == 0:
-            messagebox.showerror(
-                self.lang.get("error", "Error"), 
-                "Failed to load any images.", 
+        
+        if success:
+            self.refresh_all_displays()
+            messagebox.showinfo(
+                self.lang.get("success", "Success"),
+                self.lang.get("images_loaded", "Images loaded successfully!"),
                 parent=self
             )
-            
-        if loaded_count > 0:
-            self.refresh_right_display()
 
     def ui_load_projects_zip(self):
         """Load projects from a zip file."""
@@ -1614,7 +1717,9 @@ class App(ttk.Window):
     def ui_add_new_project(self):
         """Add a new empty project and switch to it."""
         self._save_current_form_to_backend()
-        new_index = self.backend.add_new_project(self.lang.get("new_project", "New Project"))
+        # Use index-based naming
+        project_count = self.backend.get_project_count()
+        new_index = self.backend.add_new_project(f"Project_{project_count + 1}")
         self.backend.set_current_project_index(new_index)
         self.selected_processed_index = None
         self.refresh_all_displays()
@@ -1647,7 +1752,9 @@ class App(ttk.Window):
                 )
 
     def ui_process_current_project_images(self):
-        """Process all images in the current project."""
+        """Process all images in the current project with async threading."""
+        import threading
+        
         idx = self.backend.get_current_project_index()
         proj = self.backend.get_project(idx)
         
@@ -1678,68 +1785,94 @@ class App(ttk.Window):
             
         self._save_current_form_to_backend()
         
+        # Create progress popup
         popup = tk.Toplevel(self)
         popup.title(self.lang.get("processing_title", "Processing"))
-        popup.geometry("350x150")
+        popup.geometry("400x150")
         popup.transient(self)
         popup.grab_set()
         
+        # Prevent closing while processing
+        popup.protocol("WM_DELETE_WINDOW", lambda: None)
+        
         ttk.Label(popup, text=self.lang.get("processing_warning", "Processing images...")).pack(padx=20, pady=10)
         
-        progress = ttk.Progressbar(popup, orient="horizontal", length=300, mode="determinate")
+        progress = ttk.Progressbar(popup, orient="horizontal", length=350, mode="determinate")
         progress.pack(padx=20, pady=5)
         
-        status_var = tk.StringVar(value="Starting...")
+        status_var = tk.StringVar(value="Initializing...")
         status_label = ttk.Label(popup, textvariable=status_var)
         status_label.pack(padx=20, pady=5)
+        
+        cancel_requested = [False]
+        
+        def cancel_processing():
+            cancel_requested[0] = True
+            status_var.set("Cancelling...")
+        
+        cancel_button = ttk.Button(popup, text=self.lang.get("cancel", "Cancel"), command=cancel_processing)
+        cancel_button.pack(pady=5)
         
         popup.update()
         
         total_images = len(proj.clothing_images)
         progress["maximum"] = total_images
         
-        errors = []
-        processed_count = 0
-        current_global_setting = self.backend.use_solid_bg
+        # Progress callback for backend
+        def progress_callback(current, total, message):
+            if cancel_requested[0]:
+                return False  # Signal to stop processing
+            progress["value"] = current
+            status_var.set(message)
+            popup.update_idletasks()
+            return True
         
-        for i, item in enumerate(proj.clothing_images):
-            status_var.set(f"Processing image {i+1} of {total_images}...")
-            progress["value"] = i
-            popup.update()
-            
-            needs_processing = (
-                i >= len(proj.processed_images) or 
-                "processed" not in proj.processed_images[i] or 
-                proj.processed_images[i]["processed"] is None or
-                # Force reprocessing if solid_bg setting changed
-                (i < len(proj.processed_images) and 
-                proj.processed_images[i].get("use_solid_bg", None) != current_global_setting)
-            )
-            
-            if needs_processing:
-                success, error_msg = self.backend.process_single_image(idx, i)
-                if error_msg:
-                    errors.append(error_msg)
-                if success:
-                    processed_count += 1
-            
-            progress["value"] = i + 1
-            popup.update()
+        # Processing complete callback
+        def processing_complete(future):
+            try:
+                success, errors = future.result()
+                
+                # Re-enable close button
+                popup.protocol("WM_DELETE_WINDOW", popup.destroy)
+                cancel_button.config(state="disabled")
+                
+                # Update UI
+                self.selected_processed_index = None
+                self.refresh_right_display()
+                
+                # Show results
+                if cancel_requested[0]:
+                    status_var.set("Processing cancelled")
+                    self.after(1000, popup.destroy)
+                elif errors:
+                    popup.destroy()
+                    msg = "Issues during processing:\n- " + "\n- ".join(errors[:5])  # Limit to 5 errors
+                    if len(errors) > 5:
+                        msg += f"\n... and {len(errors) - 5} more errors"
+                    messagebox.showwarning(self.lang.get("warning", "Warning"), msg, parent=self)
+                else:
+                    status_var.set("Processing complete!")
+                    self.after(1000, popup.destroy)
+                    
+            except Exception as e:
+                popup.destroy()
+                messagebox.showerror(
+                    self.lang.get("error", "Error"),
+                    f"Processing failed: {str(e)}",
+                    parent=self
+                )
         
-        popup.destroy()
+        # Start async processing
+        future = self.backend.process_project_images_async(idx, progress_callback)
         
-        self.selected_processed_index = None
-        self.refresh_right_display()
+        # Schedule completion callback
+        def check_future():
+            if future.done():
+                processing_complete(future)
+            else:
+                self.after(100, check_future)
         
-        if errors:
-            msg = "Issues during processing:\n- " + "\n- ".join(errors)
-            messagebox.showwarning(self.lang.get("warning", "Warning"), msg, parent=self)
-        elif processed_count == 0:
-            messagebox.showinfo(
-                self.lang.get("info", "Info"), 
-                self.lang.get("all_images_processed", "All images already processed."), 
-                parent=self
-            )
+        self.after(100, check_future)
 
     def ui_remove_image(self, image_index):
         """Remove an image from the current project."""
