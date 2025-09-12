@@ -45,17 +45,20 @@ class ProjectData:
     """
     def __init__(self, name):
         self.name = name
-        self.clothing_images = []      # Original images
-        self.processed_images = []     # Processed images with metadata
-        self.clothing_type = ""        # Type from templates
-        self.state = ""                # Condition description
-        self.measurements = {}         # Size measurements
-        self.selected_tags = []        # Selected hashtag categories
-        self.custom_hashtags = ""      # Additional custom hashtags
-        self.generated_description = "" # Final description text
-        self.owner_letter = ""         # Owner initial for storage code
-        self.storage_letter = ""       # Storage code letter
-        self.project_bg_path = None    # Project-wide background path
+        self.clothing_images = []
+        self.processed_images = []
+        self.clothing_type = ""
+        self.state = ""
+        self.measurements = {}
+        self.selected_tags = []
+        self.selected_colors = []
+        self.custom_hashtags = ""
+        self.generated_description = ""
+        self.owner = ""
+        self.storage = ""
+        self.owner_letter = ""
+        self.storage_letter = ""
+        self.project_bg_path = None
 
     def __repr__(self):
         return f"<ProjectData '{self.name}' ({len(self.clothing_images)} images)>"
@@ -87,6 +90,9 @@ class Backend:
         self.templates = self._load_templates_config()
         self.hashtag_mapping = self._load_hashtag_mapping_config()
         self.backgrounds = []
+        
+        # Load backgrounds from the bg folder at startup
+        self.scan_backgrounds_folder()
         
         # Project data
         self.projects = []
@@ -540,7 +546,6 @@ class Backend:
         if not image_paths:
             return False, ["No images provided"]
             
-        # Always use index-based naming
         project_index = self.add_new_project(f"Project_{len(self.projects) + 1}")
         project = self.projects[project_index]
         
@@ -583,20 +588,17 @@ class Backend:
                 
             root_items = os.listdir(self.temp_extract_dir)
             
-            # Check if ZIP contains single folder or multiple items
             if len(root_items) == 1 and os.path.isdir(os.path.join(self.temp_extract_dir, root_items[0])):
                 projects_root = os.path.join(self.temp_extract_dir, root_items[0])
             else:
                 projects_root = self.temp_extract_dir
                 
-            # Load each folder as a project with index-based naming
             folders = [item for item in os.listdir(projects_root) 
                       if os.path.isdir(os.path.join(projects_root, item))]
             
             for idx, item in enumerate(folders):
                 item_path = os.path.join(projects_root, item)
                 
-                # Use index-based naming
                 project_name = f"Project_{len(self.projects) + 1}"
                 project = ProjectData(project_name)
                 image_loaded = False
@@ -1108,21 +1110,31 @@ class Backend:
                 if canvas.mode != 'RGBA':
                     canvas = canvas.convert('RGBA')
                     
-            # Scale clothing
-            cloth_w, cloth_h = clothing_image.size
-            max_w = int(canvas_width * scale)
-            max_h = int(canvas_height * scale)
+            # Get bounding box of non-transparent content
+            bbox = clothing_image.getbbox()
+            if bbox:
+                # Crop to content bounds for cleaner processing
+                clothing_cropped = clothing_image.crop(bbox)
+                cloth_w, cloth_h = clothing_cropped.size
+            else:
+                clothing_cropped = clothing_image
+                cloth_w, cloth_h = clothing_image.size
             
-            scale_w = max_w / cloth_w
-            scale_h = max_h / cloth_h
-            final_scale = min(scale_w, scale_h)
+            # Calculate scale based on cropped content size
+            scale_w = canvas_width / cloth_w
+            scale_h = canvas_height / cloth_h
+            fit_scale = min(scale_w, scale_h)
             
+            # Apply margin factor (0.85 by default)
+            final_scale = fit_scale * scale
+            
+            # Scale the cropped image
             new_w = int(cloth_w * final_scale)
             new_h = int(cloth_h * final_scale)
             
-            clothing_resized = clothing_image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            clothing_resized = clothing_cropped.resize((new_w, new_h), Image.Resampling.LANCZOS)
             
-            # Calculate position with offsets
+            # Simple centering of the cropped, scaled image
             base_x = (canvas_width - new_w) // 2
             base_y = (canvas_height - new_h) // 2
             
@@ -1465,11 +1477,11 @@ class Backend:
             output_dir: Directory to save output
             
         Returns:
-            tuple: (success, message)
+            tuple: (success, output_folder, img_ok, img_err, desc_ok)
         """
         proj = self.get_project(project_index)
         if not proj:
-            return False, "No project selected"
+            return False, "No project selected", 0, 0, False
             
         try:
             # Create project folder using index
@@ -1484,22 +1496,34 @@ class Backend:
             os.makedirs(project_folder, exist_ok=True)
             
             # Save processed images
+            img_ok = 0
+            img_err = 0
             for i, proc_item in enumerate(proj.processed_images):
                 if proc_item.get("processed"):
-                    img = proc_item["processed"]
-                    filename = f"processed_{i+1:03d}.png"
-                    img.save(os.path.join(project_folder, filename))
+                    try:
+                        img = proc_item["processed"]
+                        filename = f"processed_{i+1:03d}.png"
+                        img.save(os.path.join(project_folder, filename))
+                        img_ok += 1
+                    except Exception as e:
+                        img_err += 1
+                        print(f"Error saving image {i+1}: {e}")
                     
             # Save description
+            desc_ok = False
             if proj.generated_description:
-                desc_path = os.path.join(project_folder, "description.txt")
-                with open(desc_path, 'w', encoding='utf-8') as f:
-                    f.write(proj.generated_description)
+                try:
+                    desc_path = os.path.join(project_folder, "description.txt")
+                    with open(desc_path, 'w', encoding='utf-8') as f:
+                        f.write(proj.generated_description)
+                    desc_ok = True
+                except Exception as e:
+                    print(f"Error saving description: {e}")
                     
-            return True, f"Saved to {folder_name}"
+            return True, folder_name, img_ok, img_err, desc_ok
             
         except Exception as e:
-            return False, str(e)
+            return False, str(e), 0, 0, False
     
     def cleanup_temp_dir(self):
         """Clean up temporary extraction directory."""

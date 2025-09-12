@@ -1106,7 +1106,7 @@ class App(ttk.Window):
             "storage_letter": self.storage_entry.get()
         }
             
-        self.backend.update_project_data(idx, proj_data)
+        self.backend.update_project_data(idx, **proj_data)
 
     # ====================== UI DISPLAY UPDATES ======================
     def refresh_all_displays(self):
@@ -1669,11 +1669,6 @@ class App(ttk.Window):
         
         if success:
             self.refresh_all_displays()
-            messagebox.showinfo(
-                self.lang.get("success", "Success"),
-                self.lang.get("images_loaded", "Images loaded successfully!"),
-                parent=self
-            )
 
     def ui_load_projects_zip(self):
         """Load projects from a zip file."""
@@ -1774,11 +1769,11 @@ class App(ttk.Window):
             )
             return
             
-        # Only check for background images if not using solid background colors
+        # Check if we can process: need either backgrounds OR solid color mode enabled
         if not self.backend.backgrounds and not self.backend.use_solid_bg:
             messagebox.showwarning(
                 self.lang.get("warning", "Warning"), 
-                self.lang.get("no_background", "No background images found or solid color disabled."), 
+                self.lang.get("no_background", "No background images found. Please add backgrounds or enable solid color mode."), 
                 parent=self
             )
             return
@@ -1940,8 +1935,11 @@ class App(ttk.Window):
         
         # Apply the adjustments
         new_image = self.backend.apply_image_adjustments(
-            idx, self.selected_processed_index, vof, hof, scale,
-            user_bg_path=user_bg_path, 
+            idx, self.selected_processed_index,
+            vof=vof, 
+            hof=hof, 
+            scale=scale,
+            bg_path=user_bg_path, 
             is_horizontal=is_horizontal,
             skip_bg_removal=skip_bg_removal,
             use_solid_bg=use_solid_bg,
@@ -2023,11 +2021,6 @@ class App(ttk.Window):
             
         try:
             pyperclip.copy(desc)
-            messagebox.showinfo(
-                self.lang.get("success", "Success"),
-                self.lang.get("copy_success", "Description copied to clipboard."),
-                parent=self
-            )
         except Exception as e:
             messagebox.showerror(
                 self.lang.get("error", "Error"), 
@@ -2084,11 +2077,6 @@ class App(ttk.Window):
                 img_ok=img_ok,
                 img_err=img_err,
                 desc_ok=desc_status
-            )
-            messagebox.showinfo(
-                self.lang.get("save_summary_title", "Output Saved"), 
-                summary, 
-                parent=self
             )
         else:
             messagebox.showerror(

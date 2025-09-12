@@ -50,7 +50,7 @@
     "processing_completed": "Image processing completed.",
     "all_images_processed": "All images already processed.",
     "no_image_loaded": "Please upload clothing images first.",
-    "no_background": "No background images found or solid color disabled.",
+    "no_background": "No background images found. Please add backgrounds or enable solid color mode.",
     "output_saved": "Output saved successfully.",
     "processing_warning": "Processing images...",
     "processing_title": "Processing",
