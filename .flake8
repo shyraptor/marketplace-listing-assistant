@@ -1,0 +1,5 @@
+[flake8]
+# Keep line-length warnings off as requested; enforce other rules
+ignore = E501
+max-line-length = 120
+
