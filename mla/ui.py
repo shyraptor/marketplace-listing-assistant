@@ -23,15 +23,8 @@ class App(ttk.Window):
         super().__init__(themename=themename)
         self._suppress_events = False
         
-        try:
-            if sys.platform.startswith('win'):
-                # Determine base path (works for both script and executable)
-                base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-                icon_path = os.path.join(base_path, "icon.ico")
-                if os.path.exists(icon_path):
-                    self.iconbitmap(icon_path)
-        except Exception as e:
-            pass
+        # Set icon for main window
+        self._set_window_icon(self)
 
         try:
             self.backend = Backend()
@@ -284,19 +277,18 @@ class App(ttk.Window):
     def _create_left_panel(self, parent):
         """Create the left control panel with form fields."""
         left_container = ttk.Frame(parent)
-        left_container.grid(row=0, column=0, sticky="ns", padx=(0, 5))
+        left_container.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         left_container.grid_rowconfigure(0, weight=1)
         left_container.grid_rowconfigure(1, weight=0)
         left_container.grid_columnconfigure(0, weight=1)
         
-        # Use the helper to create scrollable canvas
-        canvas, scrollbar, frame, frame_id = self._setup_scrollable_canvas(left_container, padding="5")
-        self.left_control_canvas = canvas
-        self.control_frame = frame
-        self.control_frame_id = frame_id
+        # Create control frame directly without scrolling
+        self.control_frame = ttk.Frame(left_container, padding="5")
+        self.control_frame.grid(row=0, column=0, sticky="nsew")
         
-        canvas.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        # No longer need canvas references
+        self.left_control_canvas = None
+        self.control_frame_id = None
         
         self._create_left_controls(self.control_frame)
         
@@ -381,11 +373,22 @@ class App(ttk.Window):
     def _create_left_controls(self, parent):
         """Create the form controls for the left panel."""
         parent.grid_columnconfigure(0, weight=1)
+        
+        # Configure row weights for proper distribution
+        # Fixed size rows: 0-3 (Type, Condition, Measurements, Custom Hashtags)
+        # Expandable rows: 4 (Tags), 5 (Colors)
+        # Fixed size row: 6 (Storage)
+        for i in range(7):
+            if i == 4 or i == 5:  # Tags and Colors sections
+                parent.grid_rowconfigure(i, weight=1)
+            else:
+                parent.grid_rowconfigure(i, weight=0)
+        
         row_index = 0
         
         # Clothing Type
         type_frame = ttk.LabelFrame(parent, text=self.lang.get("clothing_type", "Clothing Type:"), padding="5")
-        type_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
+        type_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         type_frame.grid_columnconfigure(0, weight=1)
         
         self.clothing_type_var = tk.StringVar()
@@ -397,7 +400,7 @@ class App(ttk.Window):
         
         # Condition/State
         state_frame = ttk.LabelFrame(parent, text=self.lang.get("state", "Condition:"), padding="5")
-        state_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 4))
+        state_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         state_frame.grid_columnconfigure(0, weight=1)
         
         self.state_entry = ttk.Entry(state_frame)
@@ -407,13 +410,13 @@ class App(ttk.Window):
         
         # Measurements
         self.measurement_lframe = ttk.LabelFrame(parent, text=self.lang.get("measurements", "Measurements:"), padding="5")
-        self.measurement_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
+        self.measurement_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         self.measurement_lframe.grid_columnconfigure(1, weight=1)
         row_index += 1
         
         # Custom Hashtags
         custom_frame = ttk.LabelFrame(parent, text=self.lang.get("custom_hashtags", "Custom Hashtags (#tag1, #tag2)"), padding="5")
-        custom_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
+        custom_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         custom_frame.grid_columnconfigure(0, weight=1)
         
         self.custom_hashtags_entry = ttk.Entry(custom_frame)
@@ -421,17 +424,17 @@ class App(ttk.Window):
         self.custom_hashtags_entry.bind("<KeyRelease>", lambda e: self._save_current_form_to_backend())
         row_index += 1
         
-        # Tags
+        # Tags - expandable with internal scrolling
         self._create_tags_section(parent, row_index)
         row_index += 1
         
-        # Colors section
+        # Colors section - expandable with internal scrolling
         self._create_colors_section(parent, row_index)
         row_index += 1
         
         # Storage Info
         storage_frame = ttk.LabelFrame(parent, text=self.lang.get("storage_info", "Storage Info"), padding="5")
-        storage_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
+        storage_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         storage_frame.grid_columnconfigure(1, weight=0)
         
         ttk.Label(storage_frame, text=self.lang.get("owner_letter", "Owner Initial:")).grid(row=0, column=0, sticky="w", padx=(0, 5))
@@ -444,91 +447,87 @@ class App(ttk.Window):
         self.storage_entry.grid(row=1, column=1, sticky="w", pady=2)
         self.storage_entry.bind("<KeyRelease>", lambda e: self._save_current_form_to_backend())
 
-    def _create_tags_section(self, parent, row_index):
-        """Create the tags section with checkboxes."""
-        tags_lframe = ttk.LabelFrame(parent, text=self.lang.get("tags", "Tags:"), padding="5")
-        tags_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
-        tags_lframe.grid_columnconfigure(0, weight=1)
+    def _create_tags_section(self, parent, row_idx):
+        """Create the tags selection section with search and checkboxes."""
+        tags_frame = ttk.LabelFrame(parent, text=self.lang.get("tags", "Tags:"), padding="5")
+        tags_frame.grid(row=row_idx, column=0, sticky="nsew", pady=(0, 3))
+        tags_frame.grid_columnconfigure(0, weight=1)
+        tags_frame.grid_rowconfigure(1, weight=1)  # Make canvas row expandable
         
+        # Search bar
         self.tag_search_var = tk.StringVar()
-        self.tag_search_entry = ttk.Entry(tags_lframe, textvariable=self.tag_search_var, width=30)
+        self.tag_search_entry = ttk.Entry(tags_frame, textvariable=self.tag_search_var)
         self.tag_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        self._add_placeholder(self.tag_search_entry, self.lang.get("search_tags", "Search tags..."))
+        self.tag_search_var.trace('w', lambda *args: self._filter_tags_display())
         
-        # Use debounced handler for search
-        debounced_filter = self._create_debounced_handler(self._filter_tags_display, delay=200)
-        self.tag_search_entry.bind("<KeyRelease>", debounced_filter)
+        # Container for canvas with fixed height
+        canvas_container = ttk.Frame(tags_frame)
+        canvas_container.grid(row=1, column=0, sticky="nsew")
+        canvas_container.grid_columnconfigure(0, weight=1)
+        canvas_container.grid_rowconfigure(0, weight=1)
         
-        self.tag_search_entry.bind("<FocusIn>", 
-                                lambda e: self._on_entry_focus_in(
-                                    self.tag_search_entry, 
-                                    self.lang.get("search_placeholder", "🔍 Search...")
-                                ))
-        self._add_placeholder(self.tag_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
-        
-        tags_canvas_frame = ttk.Frame(tags_lframe)
-        tags_canvas_frame.grid(row=1, column=0, sticky="nsew")
-        tags_canvas_frame.grid_rowconfigure(0, weight=1)
-        tags_canvas_frame.grid_columnconfigure(0, weight=1)
-        
-        self.tags_canvas = tk.Canvas(tags_canvas_frame, borderwidth=0, highlightthickness=0, height=200)
-        tags_scrollbar = ttk.Scrollbar(tags_canvas_frame, orient='vertical', command=self.tags_canvas.yview)
-        self.tags_canvas.configure(yscrollcommand=tags_scrollbar.set)
+        # Canvas for scrollable checkboxes - with fixed height
+        self.tags_canvas = tk.Canvas(canvas_container, height=150, borderwidth=0, highlightthickness=0)
         self.tags_canvas.grid(row=0, column=0, sticky="nsew")
+        
+        # Scrollbar
+        tags_scrollbar = ttk.Scrollbar(canvas_container, orient="vertical", command=self.tags_canvas.yview)
         tags_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.tags_canvas.configure(yscrollcommand=tags_scrollbar.set)
         
-        self.tags_check_container = ttk.Frame(self.tags_canvas, padding=(5, 0))
-        self.tags_check_container_id = self.tags_canvas.create_window((0, 0), window=self.tags_check_container, anchor='nw')
+        # Frame inside canvas for checkboxes
+        self.tags_check_container = ttk.Frame(self.tags_canvas)
+        self.tags_check_container_id = self.tags_canvas.create_window((0, 0), window=self.tags_check_container, anchor="nw")
         
-        # Bind events
-        self.tags_check_container.bind("<Configure>", lambda e: self._update_canvas_scrollregion(self.tags_canvas))
-        self.tags_canvas.bind("<Configure>", lambda e: self._update_canvas_itemwidth(self.tags_canvas, self.tags_check_container_id, e.width))
+        # Bind events for proper scrolling
+        self.tags_check_container.bind("<Configure>", lambda e: self.tags_canvas.configure(scrollregion=self.tags_canvas.bbox("all")))
+        self.tags_canvas.bind("<Configure>", lambda e: self.tags_canvas.itemconfig(self.tags_check_container_id, width=e.width))
+        
+        # Mouse wheel binding for scrolling
         self.tags_canvas.bind("<Enter>", lambda e: self._bind_mousewheel(self.tags_canvas))
         self.tags_canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
+
+    def _create_colors_section(self, parent, row_idx):
+        """Create the colors selection section with search and checkboxes."""
+        colors_frame = ttk.LabelFrame(parent, text=self.lang.get("colors", "Colors:"), padding="5")
+        colors_frame.grid(row=row_idx, column=0, sticky="nsew", pady=(0, 3))
+        colors_frame.grid_columnconfigure(0, weight=1)
+        colors_frame.grid_rowconfigure(1, weight=1)  # Make canvas row expandable
         
-        self._create_tag_checkboxes()
-
-    def _create_colors_section(self, parent, row_index):
-        """Create the colors section with checkboxes."""
-        colors_lframe = ttk.LabelFrame(parent, text=self.lang.get("colors_tab", "🎨 Colors"), padding="5")
-        colors_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 5))
-        colors_lframe.grid_columnconfigure(0, weight=1)
-
+        # Search bar
         self.color_search_var = tk.StringVar()
-        self.color_search_entry = ttk.Entry(colors_lframe, textvariable=self.color_search_var, width=30)
+        self.color_search_entry = ttk.Entry(colors_frame, textvariable=self.color_search_var)
         self.color_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        self._add_placeholder(self.color_search_entry, self.lang.get("search_colors", "Search colors..."))
+        self.color_search_var.trace('w', lambda *args: self._filter_colors_display())
         
-        # Use debounced handler for search
-        debounced_filter = self._create_debounced_handler(self._filter_colors_display, delay=200)
-        self.color_search_entry.bind("<KeyRelease>", debounced_filter)
+        # Container for canvas with fixed height
+        canvas_container = ttk.Frame(colors_frame)
+        canvas_container.grid(row=1, column=0, sticky="nsew")
+        canvas_container.grid_columnconfigure(0, weight=1)
+        canvas_container.grid_rowconfigure(0, weight=1)
         
-        self.color_search_entry.bind("<FocusIn>", 
-                                  lambda e: self._on_entry_focus_in(
-                                      self.color_search_entry, 
-                                      self.lang.get("search_placeholder", "🔍 Search...")
-                                  ))
-        self._add_placeholder(self.color_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
-
-        colors_canvas_frame = ttk.Frame(colors_lframe)
-        colors_canvas_frame.grid(row=1, column=0, sticky="nsew")
-        colors_canvas_frame.grid_rowconfigure(0, weight=1)
-        colors_canvas_frame.grid_columnconfigure(0, weight=1)
-
-        self.colors_canvas = tk.Canvas(colors_canvas_frame, borderwidth=0, highlightthickness=0, height=150)
-        colors_scrollbar = ttk.Scrollbar(colors_canvas_frame, orient='vertical', command=self.colors_canvas.yview)
-        self.colors_canvas.configure(yscrollcommand=colors_scrollbar.set)
+        # Canvas for scrollable checkboxes - with fixed height
+        self.colors_canvas = tk.Canvas(canvas_container, height=150, borderwidth=0, highlightthickness=0)
         self.colors_canvas.grid(row=0, column=0, sticky="nsew")
-        colors_scrollbar.grid(row=0, column=1, sticky="ns")
-
-        self.colors_check_container = ttk.Frame(self.colors_canvas, padding=(5, 0))
-        self.colors_check_container_id = self.colors_canvas.create_window((0, 0), window=self.colors_check_container, anchor='nw')
         
-        # Bind events
-        self.colors_check_container.bind("<Configure>", lambda e: self._update_canvas_scrollregion(self.colors_canvas))
-        self.colors_canvas.bind("<Configure>", lambda e: self._update_canvas_itemwidth(self.colors_canvas, self.colors_check_container_id, e.width))
+        # Scrollbar
+        colors_scrollbar = ttk.Scrollbar(canvas_container, orient="vertical", command=self.colors_canvas.yview)
+        colors_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.colors_canvas.configure(yscrollcommand=colors_scrollbar.set)
+        
+        # Frame inside canvas for checkboxes
+        self.colors_check_container = ttk.Frame(self.colors_canvas)
+        self.colors_check_container_id = self.colors_canvas.create_window((0, 0), window=self.colors_check_container, anchor="nw")
+        
+        # Bind events for proper scrolling
+        self.colors_check_container.bind("<Configure>", lambda e: self.colors_canvas.configure(scrollregion=self.colors_canvas.bbox("all")))
+        self.colors_canvas.bind("<Configure>", lambda e: self.colors_canvas.itemconfig(self.colors_check_container_id, width=e.width))
+        
+        # Mouse wheel binding for scrolling
         self.colors_canvas.bind("<Enter>", lambda e: self._bind_mousewheel(self.colors_canvas))
         self.colors_canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
-
-        self._create_color_checkboxes()
 
     # ====================== IMAGES TAB ======================
     def _create_images_tab(self, parent):
@@ -789,6 +788,18 @@ class App(ttk.Window):
         if not entry.get():
             entry.insert(0, placeholder)
             entry.config(foreground="grey")
+
+    def _set_window_icon(self, window):
+        """Set the application icon for a window."""
+        try:
+            if sys.platform.startswith('win'):
+                # Determine base path - go up one level from mla directory
+                base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                icon_path = os.path.join(base_path, "icon.ico")
+                if os.path.exists(icon_path):
+                    window.iconbitmap(icon_path)
+        except Exception:
+            pass  # Silently ignore icon loading errors
 
     def _get_color_from_name(self, color_name):
         """Get a hex color value from a color name."""
@@ -1086,7 +1097,7 @@ class App(ttk.Window):
     def _save_current_form_to_backend(self, update_type=None):
         """Save the current form data to the backend."""
         idx = self.backend.get_current_project_index()
-        if idx < 0:
+        if idx is None or idx < 0:
             return
             
         selected_tags = [tag for tag, var in self.tag_vars.items() if var.get()]
@@ -1147,7 +1158,10 @@ class App(ttk.Window):
                 var.set(has_proj and tag in proj.selected_tags)
             self._filter_tags_display()
         
-        if hasattr(self, 'color_vars'):
+        # Ensure color checkboxes are created
+        if not hasattr(self, 'color_vars') or not self.color_vars:
+            self._create_color_checkboxes()
+        else:
             for color, var in self.color_vars.items():
                 var.set(has_proj and color in proj.selected_tags)
             self._filter_colors_display()
@@ -1477,6 +1491,9 @@ class App(ttk.Window):
         popup.title(self.lang.get("image_preview", "Image Preview"))
         popup.transient(self)
         
+        # Set icon for the popup
+        self._set_window_icon(popup)
+        
         screen_width = popup.winfo_screenwidth()
         screen_height = popup.winfo_screenheight()
         max_width = int(screen_width * 0.9)
@@ -1612,6 +1629,9 @@ class App(ttk.Window):
         dialog.resizable(False, False)
         dialog.grab_set()
         dialog.focus_set()
+        
+        # Set icon for the dialog
+        self._set_window_icon(dialog)
         
         # Center dialog in parent window
         x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
@@ -1786,7 +1806,10 @@ class App(ttk.Window):
         popup.geometry("400x150")
         popup.transient(self)
         popup.grab_set()
-        
+
+        # Set icon for the popup
+        self._set_window_icon(popup)
+
         # Prevent closing while processing
         popup.protocol("WM_DELETE_WINDOW", lambda: None)
         
@@ -2098,14 +2121,8 @@ class App(ttk.Window):
         self.editor_window.geometry("850x700")
         self.editor_window.transient(self)
         
-        try:
-            if sys.platform.startswith('win'):
-                base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-                icon_path = os.path.join(base_path, "icon.ico")
-                if os.path.exists(icon_path):
-                    self.editor_window.iconbitmap(icon_path)
-        except Exception as e:
-            pass
+        # Set icon for the editor window
+        self._set_window_icon(self.editor_window)
         
         notebook = ttk.Notebook(self.editor_window)
         notebook.bind("<<NotebookTabChanged>>", self._on_editor_notebook_tab_changed)
