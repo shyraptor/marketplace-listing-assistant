@@ -66,7 +66,6 @@ class App(ttk.Window):
         self.type_listbox = None
         self.tag_editor_listbox = None
         self.color_editor_listbox = None
-        self.bg_combobox_map = {}
         self.editor_type_tag_vars = {}
         self.editor_type_tag_checkbuttons = {}
 
@@ -612,19 +611,6 @@ class App(ttk.Window):
         adj_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         adj_frame.grid_columnconfigure(1, weight=1)
         row = 0
-        
-        # Background selection
-        ttk.Label(adj_frame, text=self.lang.get("background_select_label", "Background Image:")).grid(
-            row=row, column=0, sticky="w", pady=2
-        )
-        self.bg_select_var = tk.StringVar()
-        self.bg_select_combo = ttk.Combobox(
-            adj_frame, textvariable=self.bg_select_var, state="readonly", width=30
-        )
-        self.bg_select_combo.grid(row=row, column=1, sticky="ew", padx=5, pady=2)
-        self.bg_select_combo.bind("<<ComboboxSelected>>", self._on_bg_selection_change)
-        self._update_bg_selector_options()
-        row += 1
         
         # Background ratio checkbox
         self.bg_ratio_var = tk.BooleanVar()
@@ -1215,9 +1201,16 @@ class App(ttk.Window):
             widget_pool = {w['index']: w for w in existing_widgets if 'index' in w}
             
             for i, img_data in enumerate(proj.clothing_images):
+                widget_entry = widget_pool.get(i)
+                if widget_entry:
+                    old_label = widget_entry.pop('bg_name_label', None)
+                    if old_label:
+                        old_label.destroy()
+                    widget_entry.pop('bg_name_var', None)
+
                 # Try to reuse existing frame
-                if i in widget_pool and widget_pool[i].get('frame'):
-                    item_frame = widget_pool[i]['frame']
+                if widget_entry and widget_entry.get('frame'):
+                    item_frame = widget_entry['frame']
                     item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
                 else:
                     item_frame = ttk.Frame(self.img_display_frame, relief="groove", borderwidth=1, padding=5)
@@ -1236,15 +1229,13 @@ class App(ttk.Window):
                     ).grid(row=0, column=1, sticky="e")
                 
                 # Display original image thumbnail using cache
+                orig_lbl = widget_entry.get('orig_label') if widget_entry else None
                 try:
                     # Use backend's cached thumbnail method
                     orig_thumb = self.backend.get_cached_thumbnail(img_data["image"], (150, 150))
                     orig_photo = ImageTk.PhotoImage(orig_thumb)
-                    
-                    # Check if we can reuse existing label
-                    orig_lbl = None
-                    if i in widget_pool and widget_pool[i].get('orig_label'):
-                        orig_lbl = widget_pool[i]['orig_label']
+
+                    if orig_lbl:
                         orig_lbl.configure(image=orig_photo)
                         orig_lbl.image = orig_photo
                     else:
@@ -1252,54 +1243,77 @@ class App(ttk.Window):
                         orig_lbl.image = orig_photo
                         orig_lbl.grid(row=0, column=0, pady=(0, 5))
                         orig_lbl.bind("<Double-Button-1>", lambda e, img=img_data["image"]: self._show_image_popup(img))
-                except Exception as e:
-                    if i not in widget_pool or not widget_pool[i].get('orig_label'):
+                except Exception:
+                    if not (widget_entry and widget_entry.get('orig_label')):
                         ttk.Label(item_frame, text="Error loading image").grid(row=0, column=0, pady=(0, 5))
                 
                 # Display processed image if available
                 if i < len(proj.processed_images):
                     proc_item = proj.processed_images[i]
+                    nav_frame = widget_entry.get('nav_frame') if widget_entry else None
+                    prev_btn = widget_entry.get('prev_button') if widget_entry else None
+                    next_btn = widget_entry.get('next_button') if widget_entry else None
+                    proc_lbl = widget_entry.get('label') if widget_entry else None
+
                     try:
                         processed_img = proc_item["processed"]
                         thumb_w, thumb_h = (200, 150) if proc_item.get("is_horizontal", False) else (150, 200)
-                        
+
                         # Use cached thumbnail for processed image
                         proc_thumb = self.backend.get_cached_thumbnail(processed_img, (thumb_w, thumb_h))
                         proc_photo = ImageTk.PhotoImage(proc_thumb)
-                        
-                        # Check if we can reuse existing label
-                        proc_lbl = None
-                        if i in widget_pool and widget_pool[i].get('label'):
-                            proc_lbl = widget_pool[i]['label']
-                            proc_lbl.configure(image=proc_photo)
-                            proc_lbl.image = proc_photo
-                        else:
+
+                        if nav_frame is None:
+                            nav_frame = ttk.Frame(item_frame)
+                        nav_frame.grid(row=1, column=0, sticky="nsew")
+                        nav_frame.grid_columnconfigure(1, weight=1)
+
+                        if prev_btn is None:
+                            prev_btn = ttk.Button(nav_frame, text="<", width=3, command=lambda idx=i: self._cycle_background(idx, -1))
+                        prev_btn.grid(row=0, column=0, padx=(0, 5))
+                        prev_btn.configure(command=lambda idx=i: self._cycle_background(idx, -1))
+
+                        if next_btn is None:
+                            next_btn = ttk.Button(nav_frame, text=">", width=3, command=lambda idx=i: self._cycle_background(idx, 1))
+                        next_btn.grid(row=0, column=2, padx=(5, 0))
+                        next_btn.configure(command=lambda idx=i: self._cycle_background(idx, 1))
+
+                        if proc_lbl is None:
                             proc_lbl = ttk.Label(
-                                item_frame, 
-                                image=proc_photo, 
-                                cursor="hand2", 
-                                relief="solid", 
+                                nav_frame,
+                                image=proc_photo,
+                                cursor="hand2",
+                                relief="solid",
                                 borderwidth=1
                             )
-                            proc_lbl.image = proc_photo
-                            proc_lbl.grid(row=1, column=0)
+                            proc_lbl.grid(row=0, column=1)
                             proc_lbl.bind("<Button-1>", lambda e, idx=i: self._on_processed_image_click(idx))
                             proc_lbl.bind("<Double-Button-1>", lambda e, img=processed_img: self._show_image_popup(img))
-                        
-                        self.proc_image_widgets.append({
-                            "label": proc_lbl, 
-                            "photo": proc_photo, 
+                        else:
+                            proc_lbl.configure(image=proc_photo)
+                        proc_lbl.image = proc_photo
+
+                        widget_info = {
+                            "label": proc_lbl,
+                            "photo": proc_photo,
                             "index": i,
                             "frame": item_frame,
-                            "orig_label": orig_lbl if 'orig_lbl' in locals() else None
-                        })
-                    except Exception as e:
-                        if i not in widget_pool or not widget_pool[i].get('label'):
+                            "orig_label": orig_lbl,
+                            "nav_frame": nav_frame,
+                            "prev_button": prev_btn,
+                            "next_button": next_btn,
+                        }
+                        self.proc_image_widgets.append(widget_info)
+                        self._set_background_indicator_for_widget(widget_info, proc_item)
+                    except Exception:
+                        if not (widget_entry and widget_entry.get('label')):
                             ttk.Label(item_frame, text="Error loading processed image").grid(row=1, column=0)
                 else:
-                    if i not in widget_pool:
+                    if widget_entry and widget_entry.get('nav_frame'):
+                        widget_entry['nav_frame'].grid_forget()
+                    if not widget_entry:
                         ttk.Label(
-                            item_frame, 
+                            item_frame,
                             text=self.lang.get("not_processed", "(Not Processed)")
                         ).grid(row=1, column=0)
                 
@@ -1375,25 +1389,134 @@ class App(ttk.Window):
             else:
                 lbl.configure(relief="solid", borderwidth=normal_border)
 
-    def _update_bg_selector_options(self):
-        """Update the background selector dropdown options."""
-        self.bg_combobox_map.clear()
-        auto_option = self.lang.get("auto_background_option", "Auto (Default)")
-        options = [auto_option]
-        self.bg_combobox_map[auto_option] = None
-        
-        for bg_path in self.backend.backgrounds:
-            display_name = os.path.basename(bg_path)
-            options.append(display_name)
-            self.bg_combobox_map[display_name] = bg_path
-            
-        current_val = self.bg_select_var.get()
-        self.bg_select_combo['values'] = options
-        
-        if current_val in options:
-            self.bg_select_var.set(current_val)
+    def _background_choices_for_item(self, processed_item):
+        """Return available background options (None represents auto selection)."""
+        choices = [None]
+        seen = {None}
+
+        for path in self.backend.backgrounds:
+            if path not in seen:
+                choices.append(path)
+                seen.add(path)
+
+        user_choice = processed_item.get("user_bg_path")
+        if user_choice and user_choice not in seen:
+            choices.append(user_choice)
+
+        return choices
+
+    def _set_background_indicator_for_widget(self, widget_info, processed_item):
+        """Sync the background label text and arrow button state for a widget."""
+        if not widget_info:
+            return
+
+        buttons = [widget_info.get("prev_button"), widget_info.get("next_button")]
+        state = "normal"
+
+        if processed_item.get("use_solid_bg", False):
+            state = "disabled"
+        elif len(self._background_choices_for_item(processed_item)) <= 1:
+            state = "disabled"
+
+        for btn in buttons:
+            if btn is not None:
+                btn.configure(state=state)
+
+    def _update_background_indicator(self, image_index):
+        """Update background label/button state for the specified processed image."""
+        proj = self.backend.get_current_project()
+        if not proj or not (0 <= image_index < len(proj.processed_images)):
+            return
+
+        widget_info = next(
+            (wi for wi in self.proc_image_widgets if wi.get("index") == image_index),
+            None
+        )
+
+        if widget_info:
+            self._set_background_indicator_for_widget(widget_info, proj.processed_images[image_index])
+
+    def _update_processed_thumbnail(self, image_index, new_image):
+        """Refresh the cached thumbnail shown in the processed image preview."""
+        proj = self.backend.get_current_project()
+        if not proj or not (0 <= image_index < len(proj.processed_images)):
+            return
+
+        widget_info = next(
+            (wi for wi in self.proc_image_widgets if wi.get("index") == image_index),
+            None
+        )
+
+        if not widget_info or not widget_info.get("label"):
+            return
+
+        proc_item = proj.processed_images[image_index]
+        thumb_w, thumb_h = (200, 150) if proc_item.get("is_horizontal", False) else (150, 200)
+        thumb = new_image.copy()
+        thumb.thumbnail((thumb_w, thumb_h))
+
+        photo = ImageTk.PhotoImage(thumb)
+        widget_info["label"].configure(image=photo)
+        widget_info["label"].image = photo
+        widget_info["photo"] = photo
+
+        self._set_background_indicator_for_widget(widget_info, proc_item)
+
+    def _cycle_background(self, image_index, direction):
+        """Cycle through available backgrounds for a processed image."""
+        proj = self.backend.get_current_project()
+        if not proj or not (0 <= image_index < len(proj.processed_images)):
+            return
+
+        project_index = self.backend.get_current_project_index()
+        if project_index < 0:
+            return
+
+        processed_item = proj.processed_images[image_index]
+
+        previous_choice = processed_item.get("user_bg_path")
+        previous_solid = processed_item.get("use_solid_bg", False)
+        choices = self._background_choices_for_item(processed_item)
+
+        if len(choices) <= 1:
+            return
+
+        if processed_item.get("use_solid_bg", False):
+            processed_item["use_solid_bg"] = False
+            if self.selected_processed_index == image_index:
+                self.item_use_solid_bg_var.set(False)
+
+        if previous_choice not in choices:
+            choices.append(previous_choice)
+
+        current_pos = choices.index(previous_choice)
+        new_choice = choices[(current_pos + direction) % len(choices)]
+        processed_item["user_bg_path"] = new_choice
+
+        if self.selected_processed_index != image_index:
+            self._on_processed_image_click(image_index)
+
+        new_image = self.backend.apply_image_adjustments(
+            project_index,
+            image_index,
+            bg_path=new_choice,
+            use_solid_bg=False,
+        )
+
+        if new_image:
+            self._update_processed_thumbnail(image_index, new_image)
+            self._update_background_indicator(image_index)
         else:
-            self.bg_select_var.set(auto_option)
+            processed_item["user_bg_path"] = previous_choice
+            processed_item["use_solid_bg"] = previous_solid
+            if self.selected_processed_index == image_index:
+                self.item_use_solid_bg_var.set(previous_solid)
+            self._update_background_indicator(image_index)
+            messagebox.showerror(
+                self.lang.get("error", "Error"),
+                self.lang.get("bg_apply_error", "Failed to change background."),
+                parent=self
+            )
 
     def _populate_adjustment_fields(self):
         """Update adjustment fields with values from the selected image."""
@@ -1427,18 +1550,6 @@ class App(ttk.Window):
             
             self.bg_ratio_var.set(item.get("is_horizontal", False))
             
-            self._update_bg_selector_options()
-            
-            selected_bg_key = self.lang.get("auto_background_option", "Auto (Default)")
-            user_choice = item.get("user_bg_path")
-            
-            if user_choice is not None:
-                for display_name, full_path in self.bg_combobox_map.items():
-                    if full_path == user_choice:
-                        selected_bg_key = display_name
-                        break
-                        
-            self.bg_select_var.set(selected_bg_key)
         else:
             # Clear all fields if no image selected
             self.slider_vof.set(0.0)
@@ -1450,8 +1561,6 @@ class App(ttk.Window):
             self.skip_bg_removal_var.set(False)
             self.item_use_solid_bg_var.set(False)
             self.bg_ratio_var.set(False)
-            self._update_bg_selector_options()
-            self.bg_select_var.set(self.lang.get("auto_background_option", "Auto (Default)"))
             self.rotation_angle_var.set("0°")
         
         # Allow a brief delay to ensure all controls are updated before re-enabling events
@@ -1541,7 +1650,7 @@ class App(ttk.Window):
         
         if self.backend.save_main_config(current_config):
             # Update any UI elements that depend on this setting
-            self._update_bg_selector_options()
+            self.refresh_right_display()
 
     def _on_slider_change(self, value):
         """Handle adjustment slider change events."""
@@ -1590,12 +1699,6 @@ class App(ttk.Window):
             return
         # Allow the checkbox to visually update first
         self.after(50, lambda: self._process_with_indicator(self.ui_apply_adjustments))
-
-    def _on_bg_selection_change(self, event=None):
-        """Handle background selection change."""
-        if self._suppress_events:
-            return
-        self._process_with_indicator(self.ui_apply_adjustments)
 
     def _on_processed_image_click(self, index):
         """Handle click on a processed image."""
@@ -1967,31 +2070,32 @@ class App(ttk.Window):
         rotation_angle_str = self.rotation_angle_var.get()
         rotation_angle = int(rotation_angle_str.rstrip('°'))
         
-        selected_bg_display = self.bg_select_var.get()
-        user_bg_path = self.bg_combobox_map.get(selected_bg_display)
         is_horizontal = self.bg_ratio_var.get()
         skip_bg_removal = self.skip_bg_removal_var.get()
         use_solid_bg = self.item_use_solid_bg_var.get()
-        
+
         proj = self.backend.get_project(idx)
         force_reprocess = False
-        
+        bg_path = None
+
         if proj and 0 <= self.selected_processed_index < len(proj.processed_images):
             item = proj.processed_images[self.selected_processed_index]
             
             old_skip_state = item.get("skip_bg_removal", False)
             old_solid_bg_state = item.get("use_solid_bg", None)
-            
+
             if old_skip_state != skip_bg_removal or old_solid_bg_state != use_solid_bg:
                 force_reprocess = True
-        
+
+            bg_path = item.get("user_bg_path")
+
         # Apply the adjustments
         new_image = self.backend.apply_image_adjustments(
             idx, self.selected_processed_index,
             vof=vof, 
             hof=hof, 
             scale=scale,
-            bg_path=user_bg_path, 
+            bg_path=bg_path, 
             is_horizontal=is_horizontal,
             skip_bg_removal=skip_bg_removal,
             use_solid_bg=use_solid_bg,
@@ -2000,31 +2104,17 @@ class App(ttk.Window):
         )
         
         if new_image:
-            # Find the widget for the selected image
             target_widget_info = next(
                 (wi for wi in self.proc_image_widgets if wi["index"] == self.selected_processed_index),
                 None
             )
-            
+
             if target_widget_info:
-                lbl = target_widget_info["label"]
                 try:
-                    thumb_w, thumb_h = (200, 150) if is_horizontal else (150, 200)
-                    thumb = new_image.copy()
-                    thumb.thumbnail((thumb_w, thumb_h))
-                    new_photo = ImageTk.PhotoImage(thumb)
-                    lbl.configure(image=new_photo)
-                    lbl.image = new_photo
-                    target_widget_info["photo"] = new_photo
-                    
-                    if skip_bg_removal:
-                        lbl.configure(relief="solid", borderwidth=3)
-                    else:
-                        lbl.configure(relief="raised", borderwidth=2)
-                    
-                    # Restore selection highlight
+                    self._update_processed_thumbnail(self.selected_processed_index, new_image)
                     self._highlight_selected_processed()
-                except Exception as e:
+                    self._update_background_indicator(self.selected_processed_index)
+                except Exception:
                     self.refresh_right_display()
             else:
                 self.refresh_right_display()
@@ -3144,7 +3234,7 @@ class App(ttk.Window):
                 msg, 
                 parent=self.editor_window
             )
-            self._update_bg_selector_options()
+            self.refresh_right_display()
         else:
             # If nothing was added but files were selected, show skipped files
             if skipped:
@@ -3203,7 +3293,7 @@ class App(ttk.Window):
                 msg, 
                 parent=self.editor_window
             )
-            self._update_bg_selector_options()
+            self.refresh_right_display()
         else:
             # If nothing was added but folder had files, show skipped files
             if skipped:
@@ -3263,7 +3353,7 @@ class App(ttk.Window):
             
             if success:
                 self._editor_refresh_bg_listbox()
-                self._update_bg_selector_options()
+                self.refresh_right_display()
                 messagebox.showinfo(
                     self.lang.get("success", "Success"), 
                     f"Background '{basename}' removed.", 
