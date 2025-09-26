@@ -264,6 +264,28 @@ class ImageProcessor:
     # ------------------------------------------------------------------
     # Composition helpers
     # ------------------------------------------------------------------
+    def _effective_bbox(self, image: Image.Image, alpha_threshold: int = 10) -> Optional[Tuple[int, int, int, int]]:
+        """Return a bounding box trimmed by alpha threshold to drop near-transparent halos."""
+
+        if image.mode != "RGBA":
+            image = image.convert("RGBA")
+
+        try:
+            alpha = image.getchannel("A")
+        except ValueError:
+            return image.getbbox()
+
+        if alpha_threshold > 0:
+            # Treat very transparent pixels as empty to avoid huge boxes from faint remnants
+            lut = [0] * (alpha_threshold + 1) + [255] * (255 - alpha_threshold)
+            alpha = alpha.point(lut)
+
+        bbox = alpha.getbbox()
+        if bbox is None and image.mode == "RGBA":
+            # Fallback so completely transparent images still yield something sensible
+            return image.getbbox()
+        return bbox
+
     def fit_clothing(
         self,
         clothing_image: Image.Image,
@@ -291,7 +313,7 @@ class ImageProcessor:
                 if canvas.mode != "RGBA":
                     canvas = canvas.convert("RGBA")
 
-            bbox = clothing_image.getbbox()
+            bbox = self._effective_bbox(clothing_image)
             if bbox:
                 clothing_cropped = clothing_image.crop(bbox)
                 cloth_w, cloth_h = clothing_cropped.size

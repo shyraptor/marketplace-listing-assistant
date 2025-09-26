@@ -22,6 +22,7 @@ class App(ttk.Window):
         """Initialize the application with the specified theme."""
         super().__init__(themename=themename)
         self._suppress_events = False
+        self._slider_apply_job = None
         
         # Set icon for main window
         self._set_window_icon(self)
@@ -584,6 +585,10 @@ class App(ttk.Window):
         )
         slider.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
         setattr(self, slider_attr, slider)
+
+        # Apply changes when the interaction finishes
+        slider.bind("<ButtonRelease-1>", self._on_slider_release)
+        slider.bind("<KeyRelease>", self._on_slider_release)
         
         # Format initial value
         if "scale" in slider_attr:
@@ -1394,6 +1399,7 @@ class App(ttk.Window):
         """Update adjustment fields with values from the selected image."""
         # Set flag to suppress events while updating controls
         self._suppress_events = True
+        self._cancel_pending_slider_apply()
         
         proj = self.backend.get_current_project()
         if proj and self.selected_processed_index is not None and 0 <= self.selected_processed_index < len(proj.processed_images):
@@ -1551,8 +1557,31 @@ class App(ttk.Window):
         self.label_vof.config(text=f"{vof_val:+.2f}")
         self.label_hof.config(text=f"{hof_val:+.2f}")
         self.label_scale.config(text=f"{scale_val:.1f}×")
-        
-        # Apply changes immediately
+
+        self._schedule_slider_apply()
+
+    def _schedule_slider_apply(self, delay: int = 200):
+        """Debounce expensive image recomposition while the slider is moving."""
+        if self._slider_apply_job is not None:
+            self.after_cancel(self._slider_apply_job)
+        self._slider_apply_job = self.after(delay, self._apply_slider_changes)
+
+    def _cancel_pending_slider_apply(self):
+        """Cancel any pending apply scheduled from slider movement."""
+        if self._slider_apply_job is not None:
+            self.after_cancel(self._slider_apply_job)
+            self._slider_apply_job = None
+
+    def _apply_slider_changes(self):
+        """Apply slider adjustments after debounce delay."""
+        self._slider_apply_job = None
+        self.ui_apply_adjustments()
+
+    def _on_slider_release(self, event=None):
+        """Apply adjustments immediately when the slider interaction ends."""
+        if self._suppress_events:
+            return
+        self._cancel_pending_slider_apply()
         self.ui_apply_adjustments()
 
     def _on_checkbox_change(self):

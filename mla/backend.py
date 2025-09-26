@@ -452,10 +452,10 @@ class Backend:
         future = self.process_project_images_async(project_index)
         return future.result()
 
-    def apply_image_adjustments(self, project_index: int, image_index: int, **adjustments: Any) -> Tuple[bool, Optional[str]]:
+    def apply_image_adjustments(self, project_index: int, image_index: int, **adjustments: Any) -> Optional[Image.Image]:
         project = self.get_project(project_index)
         if not project or image_index >= len(project.processed_images):
-            return False, "Invalid indices"
+            return None
 
         try:
             processed = project.processed_images[image_index]
@@ -509,9 +509,9 @@ class Backend:
                 processed.get("rotation_angle", 0),
             )
             processed["processed"] = final_img
-            return True, None
-        except Exception as exc:
-            return False, str(exc)
+            return final_img
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------
     # Description & export
