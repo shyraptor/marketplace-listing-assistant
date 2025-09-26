@@ -86,5 +86,18 @@
       "coat",
       "cotton"
     ]
+  },
+  "Vest": {
+    "fields": [
+      "Length",
+      "Width (chest)",
+      "Width (shoulders)",
+      "Width (neck)"
+    ],
+    "default_tags": [
+      "base",
+      "top",
+      "vest"
+    ]
   }
 }

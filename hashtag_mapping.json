@@ -1,95 +1,95 @@
 {
   "red color": [
-      "red",
-      "ruby",
-      "crimson",
-      "scarlet",
-      "červená",
-      "cervena",
-      "rudá",
-      "ruda"
+    "red",
+    "ruby",
+    "crimson",
+    "scarlet",
+    "červená",
+    "cervena",
+    "rudá",
+    "ruda"
   ],
   "blue color": [
-      "blue",
-      "navy",
-      "azure",
-      "modrá",
-      "modra"
+    "blue",
+    "navy",
+    "azure",
+    "modrá",
+    "modra"
   ],
   "green color": [
-      "green",
-      "emerald",
-      "olive",
-      "mint",
-      "zelená",
-      "zelena"
+    "green",
+    "emerald",
+    "olive",
+    "mint",
+    "zelená",
+    "zelena"
   ],
   "black color": [
-      "black",
-      "jet",
-      "ebony",
-      "černá",
-      "cerna"
+    "black",
+    "jet",
+    "ebony",
+    "černá",
+    "cerna"
   ],
   "white color": [
-      "white",
-      "ivory",
-      "cream",
-      "bílá",
-      "bila"
+    "white",
+    "ivory",
+    "cream",
+    "bílá",
+    "bila"
   ],
   "gray color": [
-      "gray",
-      "grey",
-      "silver",
-      "šedá",
-      "seda"
+    "gray",
+    "grey",
+    "silver",
+    "šedá",
+    "seda"
   ],
   "yellow color": [
-      "yellow",
-      "gold",
-      "amber",
-      "žlutá",
-      "zluta"
+    "yellow",
+    "gold",
+    "amber",
+    "žlutá",
+    "zluta"
   ],
   "orange color": [
-      "orange",
-      "tangerine",
-      "coral",
-      "oranžová",
-      "oranzova"
+    "orange",
+    "tangerine",
+    "coral",
+    "oranžová",
+    "oranzova"
   ],
   "purple color": [
-      "purple",
-      "violet",
-      "lavender",
-      "mauve",
-      "fialová",
-      "fialova"
+    "purple",
+    "violet",
+    "lavender",
+    "mauve",
+    "fialová",
+    "fialova"
   ],
   "pink color": [
-      "pink",
-      "rose",
-      "magenta",
-      "fuschia",
-      "růžová",
-      "ruzova"
+    "pink",
+    "rose",
+    "magenta",
+    "fuschia",
+    "růžová",
+    "ruzova"
   ],
   "brown color": [
-      "brown",
-      "tan",
-      "chocolate",
-      "sepia",
-      "hnědá",
-      "hneda"
+    "brown",
+    "tan",
+    "chocolate",
+    "sepia",
+    "hnědá",
+    "hneda"
   ],
   "turquoise color": [
-      "turquoise",
-      "teal",
-      "aqua",
-      "cyan",
-      "tyrkysová",
-      "tyrkysova"
+    "turquoise",
+    "teal",
+    "aqua",
+    "cyan",
+    "tyrkysová",
+    "tyrkysova"
   ],
   "vintage": [
     "vintage",
@@ -98,12 +98,14 @@
     "antique",
     "nostalgia",
     "timeless",
-    "nostalgic"
+    "nostalgic",
+    "alternative",
+    "alt"
   ],
   "shirt": [
     "shirt",
     "buttonup",
-    "ko\u0161ile",
+    "košile",
     "kosile",
     "collar",
     "sleeves",
@@ -124,17 +126,19 @@
     "2000s",
     "00s",
     "2k",
-    "#streetwear",
+    "streetwear",
     "aesthetic",
     "millennial",
     "futuristic",
-    "cyber"
+    "cyber",
+    "alternative",
+    "alt"
   ],
   "jeans": [
     "jeans",
     "denim",
     "dziny",
-    "d\u017e\u00edny",
+    "džíny",
     "momjeans",
     "skinny",
     "straightcut",
@@ -146,7 +150,7 @@
     "potisk",
     "obrazek",
     "picture",
-    "obr\u00e1zek",
+    "obrázek",
     "graphic",
     "graphics",
     "stamped",
@@ -162,7 +166,7 @@
     "tee",
     "tshirt",
     "t",
-    "tri\u010dko",
+    "tričko",
     "tricko",
     "triko",
     "shortsleeve",
@@ -269,7 +273,7 @@
     "wheels",
     "auto",
     "auta",
-    "z\u00e1vod\u011bn\u00ed",
+    "závodění",
     "racer",
     "motor",
     "motorsport",
@@ -343,7 +347,9 @@
     "tattoo",
     "biker",
     "skull",
-    "rebellious"
+    "rebellious",
+    "alternative",
+    "alt"
   ],
   "checked": [
     "checks",
@@ -363,7 +369,7 @@
     "bag",
     "bags",
     "handbag",
-    "ta\u0161ka",
+    "taška",
     "kabelka",
     "ledvinka",
     "fanny",
@@ -392,5 +398,11 @@
     "armadni",
     "maskace",
     "maskovane"
+  ],
+  "corduroy": [
+    "corduroy"
+  ],
+  "vest": [
+    "vest"
   ]
 }
