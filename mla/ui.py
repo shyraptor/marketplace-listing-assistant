@@ -1,15 +1,31 @@
 # frontend.py
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+from tkinter import filedialog, messagebox
+
+try:
+    import ttkbootstrap as ttk
+    from ttkbootstrap.constants import *
+except ModuleNotFoundError as exc:  # pragma: no cover - startup dependency guard
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "Missing Dependency",
+        "ttkbootstrap is required for the Marketplace Listing Assistant UI.\n\n"
+        "Install it with:\n    pip install ttkbootstrap",
+    )
+    root.destroy()
+    raise SystemExit("Please install ttkbootstrap via 'pip install ttkbootstrap'") from exc
+
 from PIL import ImageTk, Image
 import pyperclip
 import os
 import sys
+import subprocess
 
 # Import the backend
 from mla.backend import Backend, ProjectData, APP_NAME
+from mla.constants import BG_DIR
+
 
 class App(ttk.Window):
     """
@@ -21,6 +37,9 @@ class App(ttk.Window):
     def __init__(self, themename="solar"):
         """Initialize the application with the specified theme."""
         super().__init__(themename=themename)
+        existing_style = getattr(self, "style", None)
+        self._style = existing_style if existing_style is not None else ttk.Style()
+        self._apply_theme_overrides()
         self._suppress_events = False
         self._slider_apply_job = None
         
@@ -76,6 +95,53 @@ class App(ttk.Window):
 
         self._update_project_label()
         self.refresh_all_displays()
+
+    def _apply_theme_overrides(self):
+        """Set up a cohesive visual palette and shared widget styles."""
+        self.palette = {
+            "surface": "#0f172a",
+            "panel": "#151f3a",
+            "card": "#192347",
+            "text": "#f8fafc",
+            "muted": "#94a3b8",
+            "danger": "#f87171",
+        }
+        fonts = {
+            "base": ("Segoe UI", 10),
+            "section": ("Segoe UI Semibold", 11),
+            "button": ("Segoe UI Semibold", 10),
+        }
+        self.configure(background=self.palette["surface"])
+        style = self._style
+        style.configure(".", font=fonts["base"])
+        style.configure("TLabel", foreground=self.palette["text"])
+        style.configure("Hint.TLabel", foreground=self.palette["muted"], background=self.palette["panel"], font=("Segoe UI", 9, "italic"))
+        style.configure("App.TFrame", background=self.palette["surface"])
+        style.configure("Panel.TFrame", background=self.palette["panel"])
+        style.configure("Card.TLabelframe", background=self.palette["card"], foreground=self.palette["text"], padding=10)
+        style.configure("Card.TLabelframe.Label", font=fonts["section"], foreground=self.palette["muted"], background=self.palette["card"])
+        style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
+        style.configure("TNotebook.Tab", font=fonts["button"], padding=[10, 6])
+        style.configure("AppPrimary.TButton", font=fonts["button"], padding=8)
+        style.configure("AppSecondary.TButton", font=fonts["button"], padding=6)
+        style.configure("AppLink.TButton", font=fonts["button"], padding=4)
+        style.configure("AppDanger.TButton", font=fonts["button"], padding=6)
+        style.map("AppDanger.TButton", foreground=[("!disabled", self.palette["danger"])])
+        self.frame_style = "App.TFrame"
+        self.panel_style = "Panel.TFrame"
+        self.card_style = "Card.TLabelframe"
+        self.button_styles = {
+            "primary": {"style": "AppPrimary.TButton", "bootstyle": "primary"},
+            "secondary": {"style": "AppSecondary.TButton", "bootstyle": "secondary"},
+            "link": {"style": "AppLink.TButton", "bootstyle": "link"},
+            "danger": {"style": "AppDanger.TButton", "bootstyle": "danger"},
+            "success": {"style": "AppPrimary.TButton", "bootstyle": "success"},
+        }
+
+    def _button_options(self, variant: str = "secondary") -> dict:
+        """Return shared style/bootstyle options for ttk Buttons."""
+        cfg = self.button_styles.get(variant, self.button_styles["secondary"])
+        return {"style": cfg["style"], "bootstyle": cfg["bootstyle"]}
 
     def _create_debounced_handler(self, callback, delay=300):
         """
@@ -141,7 +207,7 @@ class App(ttk.Window):
         self._create_top_toolbar()
         
         # Main area with left panel and right notebook
-        main_frame = ttk.Frame(self, padding="5 0 5 5")
+        main_frame = ttk.Frame(self, padding="5 0 5 5", style=self.frame_style)
         main_frame.grid(row=1, column=0, columnspan=2, sticky="nsew")
         main_frame.grid_rowconfigure(0, weight=1)
         main_frame.grid_columnconfigure(0, weight=0, minsize=350)
@@ -155,7 +221,7 @@ class App(ttk.Window):
 
     def _create_top_toolbar(self):
         """Create the top toolbar with action buttons."""
-        top_frame = ttk.Frame(self, padding="5 5 5 5")
+        top_frame = ttk.Frame(self, padding="5 5 5 5", style=self.panel_style)
         top_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
         
         # Configure columns for top_frame
@@ -166,48 +232,64 @@ class App(ttk.Window):
         top_frame.columnconfigure(4, weight=0)  # Settings
         
         # Project Navigation (Left)
-        nav_frame = ttk.Frame(top_frame)
+        nav_frame = ttk.Frame(top_frame, style=self.panel_style)
         nav_frame.grid(row=0, column=0, sticky="w")
         
         ttk.Button(
             nav_frame,
-            text=self.lang.get("new_project_button", "➕ Project"),
-            command=self.ui_add_new_project
-        ).grid(row=0, column=0, padx=1)
+            text=self.lang.get("new_project_button", "New Project"),
+            command=self.ui_add_new_project,
+            **self._button_options("primary"),
+        ).grid(row=0, column=0, padx=4)
         
-        self.btn_prev_project = ttk.Button(nav_frame, text="<", command=self.prev_project, width=3)
-        self.btn_prev_project.grid(row=0, column=1, padx=1)
+        self.btn_prev_project = ttk.Button(
+            nav_frame,
+            text="<",
+            width=3,
+            command=self.prev_project,
+            **self._button_options("secondary"),
+        )
+        self.btn_prev_project.grid(row=0, column=1, padx=2)
         
         self.project_label_var = tk.StringVar()
-        ttk.Label(nav_frame, textvariable=self.project_label_var, anchor="center", width=15).grid(row=0, column=2, padx=1)
+        ttk.Label(nav_frame, textvariable=self.project_label_var, anchor="center", width=18, style="TLabel").grid(row=0, column=2, padx=6)
         
-        self.btn_next_project = ttk.Button(nav_frame, text=">", command=self.next_project, width=3)
-        self.btn_next_project.grid(row=0, column=3, padx=1)
+        self.btn_next_project = ttk.Button(
+            nav_frame,
+            text=">",
+            width=3,
+            command=self.next_project,
+            **self._button_options("secondary"),
+        )
+        self.btn_next_project.grid(row=0, column=3, padx=2)
         
         ttk.Button(
             nav_frame,
-            text=self.lang.get("remove_project_button", "🗑️ Project"),
-            command=self.ui_remove_current_project
-        ).grid(row=0, column=4, padx=1)
+            text=self.lang.get("remove_project_button", "Remove Project"),
+            command=self.ui_remove_current_project,
+            **self._button_options("danger"),
+        ).grid(row=0, column=4, padx=4)
         
         # File Operations (Middle-Left)
-        file_ops_frame = ttk.Frame(top_frame)
+        file_ops_frame = ttk.Frame(top_frame, style=self.panel_style)
         file_ops_frame.grid(row=0, column=2, sticky="w")
         
         ttk.Button(
             file_ops_frame,
-            text=self.lang.get("add_images_button", "➕ Images"),
-            command=self.ui_load_single_project_images
-        ).grid(row=0, column=0, padx=1)
+            text=self.lang.get("add_images_button", "Add Images"),
+            command=self.ui_load_single_project_images,
+            **self._button_options("secondary"),
+        ).grid(row=0, column=0, padx=4)
         
         ttk.Button(
             file_ops_frame,
-            text=self.lang.get("load_zip_button", "📦 Zip"),
-            command=self.ui_load_projects_zip
-        ).grid(row=0, column=1, padx=1)
+            text=self.lang.get("load_zip_button", "Load Zip"),
+            command=self.ui_load_projects_zip,
+            **self._button_options("secondary"),
+        ).grid(row=0, column=1, padx=4)
         
         # Processing/Generate/Save (Middle-Right)
-        process_frame = ttk.Frame(top_frame)
+        process_frame = ttk.Frame(top_frame, style=self.panel_style)
         process_frame.grid(row=0, column=3, sticky="we")
         
         self.global_use_solid_bg_var = tk.BooleanVar(value=self.backend.use_solid_bg)
@@ -215,33 +297,37 @@ class App(ttk.Window):
             process_frame,
             text=self.lang.get("use_solid_bg", "Use solid background color"),
             variable=self.global_use_solid_bg_var,
-            command=self._on_global_use_solid_bg_change
+            command=self._on_global_use_solid_bg_change,
+            bootstyle="round-toggle",
         ).grid(row=0, column=0, padx=(0, 10))
         
         ttk.Button(
             process_frame, 
-            text=self.lang.get("process_images_button", "✨ Process"), 
-            command=self.ui_process_current_project_images
-        ).grid(row=0, column=1, padx=1)
+            text=self.lang.get("process_images_button", "Process"), 
+            command=self.ui_process_current_project_images,
+            **self._button_options("primary"),
+        ).grid(row=0, column=1, padx=4)
         
         ttk.Button(
             process_frame, 
-            text=self.lang.get("generate_desc_button", "📝 Generate"), 
-            command=self.ui_generate_current_description
-        ).grid(row=0, column=2, padx=1)
+            text=self.lang.get("generate_desc_button", "Generate Description"), 
+            command=self.ui_generate_current_description,
+            **self._button_options("secondary"),
+        ).grid(row=0, column=2, padx=4)
         
         ttk.Button(
-            process_frame, 
-            text=self.lang.get("save_output_button", "💾 Save"), 
-            command=self.ui_save_current_project_output, 
-            bootstyle="primary-outline"
-        ).grid(row=0, column=3, padx=1)
+            process_frame,
+            text=self.lang.get("save_output_button", "Save Output"),
+            command=self.ui_save_current_project_output,
+            **self._button_options("success"),
+        ).grid(row=0, column=3, padx=4)
         
         # Settings (Far Right)
         ttk.Button(
             top_frame, 
-            text=self.lang.get("open_editor_button", "⚙️ Settings"), 
-            command=self.open_editor_window
+            text=self.lang.get("open_editor_button", "Settings"), 
+            command=self.open_editor_window,
+            **self._button_options("link"),
         ).grid(row=0, column=4, sticky="e", padx=(10, 0))
 
     def _setup_scrollable_canvas(self, parent, padding="0", height=None):
@@ -276,14 +362,14 @@ class App(ttk.Window):
 
     def _create_left_panel(self, parent):
         """Create the left control panel with form fields."""
-        left_container = ttk.Frame(parent)
+        left_container = ttk.Frame(parent, style=self.panel_style)
         left_container.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         left_container.grid_rowconfigure(0, weight=1)
         left_container.grid_rowconfigure(1, weight=0)
         left_container.grid_columnconfigure(0, weight=1)
         
         # Create control frame directly without scrolling
-        self.control_frame = ttk.Frame(left_container, padding="5")
+        self.control_frame = ttk.Frame(left_container, padding="5", style=self.panel_style)
         self.control_frame.grid(row=0, column=0, sticky="nsew")
         
         # No longer need canvas references
@@ -295,14 +381,14 @@ class App(ttk.Window):
         self.hint_label = ttk.Label(
             left_container, 
             text=self.lang.get("no_values_mandatory_hint", "*All fields are optional"), 
-            font=("TkDefaultFont", 8, "italic"), 
-            anchor="w"
+            anchor="w",
+            style="Hint.TLabel",
         )
         self.hint_label.grid(row=1, column=0, sticky="ew", padx=5, pady=(5, 0))
 
     def _create_right_panel(self, parent):
         """Create the right panel with notebook tabs."""
-        right_container = ttk.Frame(parent)
+        right_container = ttk.Frame(parent, style=self.panel_style)
         right_container.grid(row=0, column=1, sticky="nsew")
         right_container.grid_rowconfigure(0, weight=1)
         right_container.grid_columnconfigure(0, weight=1)
@@ -310,16 +396,16 @@ class App(ttk.Window):
         self.notebook = ttk.Notebook(right_container)
         self.notebook.grid(row=0, column=0, sticky="nsew")
         
-        self.images_tab_frame = ttk.Frame(self.notebook, padding="5")
-        self.description_tab_frame = ttk.Frame(self.notebook, padding="5")
+        self.images_tab_frame = ttk.Frame(self.notebook, padding="5", style=self.panel_style)
+        self.description_tab_frame = ttk.Frame(self.notebook, padding="5", style=self.panel_style)
         
         self.notebook.add(
             self.images_tab_frame, 
-            text=self.lang.get("images_tab", "🖼️ Images & Adjustments")
+            text=self.lang.get("images_tab", "Images & Adjustments")
         )
         self.notebook.add(
             self.description_tab_frame, 
-            text=self.lang.get("description_tab", "📝 Description")
+            text=self.lang.get("description_tab", "Description")
         )
         
         self._create_images_tab(self.images_tab_frame)
@@ -329,10 +415,11 @@ class App(ttk.Window):
     def _on_frame_configure(self, canvas):
         """Update canvas scrollregion when the frame changes size."""
         canvas.update_idletasks()
-        canvas.configure(scrollregion=canvas.bbox("all"))
+        bbox = canvas.bbox("all")
+        canvas.configure(scrollregion=bbox)
         
         # Show/hide scrollbar based on content height
-        content_height = canvas.winfo_height()
+        content_height = (bbox[3] - bbox[1]) if bbox else 0
         canvas_height = canvas.winfo_height()
         scrollbar = canvas.master.children.get('!scrollbar')
         if scrollbar:
@@ -387,7 +474,12 @@ class App(ttk.Window):
         row_index = 0
         
         # Clothing Type
-        type_frame = ttk.LabelFrame(parent, text=self.lang.get("clothing_type", "Clothing Type:"), padding="5")
+        type_frame = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("clothing_type", "Clothing Type:"),
+            padding="5",
+            style=self.card_style,
+        )
         type_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         type_frame.grid_columnconfigure(0, weight=1)
         
@@ -399,7 +491,12 @@ class App(ttk.Window):
         row_index += 1
         
         # Condition/State
-        state_frame = ttk.LabelFrame(parent, text=self.lang.get("state", "Condition:"), padding="5")
+        state_frame = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("state", "Condition:"),
+            padding="5",
+            style=self.card_style,
+        )
         state_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         state_frame.grid_columnconfigure(0, weight=1)
         
@@ -409,13 +506,23 @@ class App(ttk.Window):
         row_index += 1
         
         # Measurements
-        self.measurement_lframe = ttk.LabelFrame(parent, text=self.lang.get("measurements", "Measurements:"), padding="5")
+        self.measurement_lframe = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("measurements", "Measurements:"),
+            padding="5",
+            style=self.card_style,
+        )
         self.measurement_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         self.measurement_lframe.grid_columnconfigure(1, weight=1)
         row_index += 1
         
         # Custom Hashtags
-        custom_frame = ttk.LabelFrame(parent, text=self.lang.get("custom_hashtags", "Custom Hashtags (#tag1, #tag2)"), padding="5")
+        custom_frame = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("custom_hashtags", "Custom Hashtags (#tag1, #tag2)"),
+            padding="5",
+            style=self.card_style,
+        )
         custom_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         custom_frame.grid_columnconfigure(0, weight=1)
         
@@ -433,7 +540,12 @@ class App(ttk.Window):
         row_index += 1
         
         # Storage Info
-        storage_frame = ttk.LabelFrame(parent, text=self.lang.get("storage_info", "Storage Info"), padding="5")
+        storage_frame = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("storage_info", "Storage Info"),
+            padding="5",
+            style=self.card_style,
+        )
         storage_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
         storage_frame.grid_columnconfigure(1, weight=0)
         
@@ -449,7 +561,12 @@ class App(ttk.Window):
 
     def _create_tags_section(self, parent, row_idx):
         """Create the tags selection section with search and checkboxes."""
-        tags_frame = ttk.LabelFrame(parent, text=self.lang.get("tags", "Tags:"), padding="5")
+        tags_frame = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("tags", "Tags:"),
+            padding="5",
+            style=self.card_style,
+        )
         tags_frame.grid(row=row_idx, column=0, sticky="nsew", pady=(0, 3))
         tags_frame.grid_columnconfigure(0, weight=1)
         tags_frame.grid_rowconfigure(1, weight=1)  # Make canvas row expandable
@@ -490,7 +607,12 @@ class App(ttk.Window):
 
     def _create_colors_section(self, parent, row_idx):
         """Create the colors selection section with search and checkboxes."""
-        colors_frame = ttk.LabelFrame(parent, text=self.lang.get("colors", "Colors:"), padding="5")
+        colors_frame = ttk.LabelFrame(
+            parent,
+            text=self.lang.get("colors", "Colors:"),
+            padding="5",
+            style=self.card_style,
+        )
         colors_frame.grid(row=row_idx, column=0, sticky="nsew", pady=(0, 3))
         colors_frame.grid_columnconfigure(0, weight=1)
         colors_frame.grid_rowconfigure(1, weight=1)  # Make canvas row expandable
@@ -591,7 +713,7 @@ class App(ttk.Window):
         
         # Format initial value
         if "scale" in slider_attr:
-            initial_text = f"{initial_val}×"
+            initial_text = f"{initial_val}x"
         else:
             initial_text = format_str.format(initial_val)
             
@@ -606,7 +728,8 @@ class App(ttk.Window):
         adj_frame = ttk.LabelFrame(
             parent, 
             text=self.lang.get("adjustments_label", "Adjust Selected Image"), 
-            padding="10"
+            padding="10",
+            style=self.card_style,
         )
         adj_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         adj_frame.grid_columnconfigure(1, weight=1)
@@ -695,7 +818,7 @@ class App(ttk.Window):
             command=self._on_slider_change
         )
         self.slider_scale.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
-        self.label_scale = ttk.Label(adj_frame, text="0.85×")
+        self.label_scale = ttk.Label(adj_frame, text="0.85x")
         self.label_scale.grid(row=row, column=2, sticky="w", padx=5, pady=1)
         row += 1
         
@@ -707,23 +830,25 @@ class App(ttk.Window):
         rotation_frame.grid(row=row, column=1, sticky="w", padx=5, pady=2)
         
         # Rotation angle display
-        self.rotation_angle_var = tk.StringVar(value="0°")
+        self.rotation_angle_var = tk.StringVar(value="0 deg")
         self.rotation_label = ttk.Label(rotation_frame, textvariable=self.rotation_angle_var, width=5)
         self.rotation_label.grid(row=0, column=0, padx=(0, 10))
         
         # Rotation buttons
         ttk.Button(
             rotation_frame,
-            text="⟲ Left",
+            text="Rotate Left", 
             command=self._rotate_left,
-            width=8
+            width=12,
+            **self._button_options("secondary"),
         ).grid(row=0, column=1, padx=2)
         
         ttk.Button(
             rotation_frame,
-            text="⟳ Right", 
+            text="Rotate Right", 
             command=self._rotate_right,
-            width=8
+            width=12,
+            **self._button_options("secondary"),
         ).grid(row=0, column=2, padx=2)
 
     # ====================== DESCRIPTION TAB ======================
@@ -733,7 +858,18 @@ class App(ttk.Window):
         parent.grid_columnconfigure(0, weight=1)
         
         # Text area for description
-        self.desc_text = tk.Text(parent, height=15, width=60, wrap="word", relief="solid", borderwidth=1)
+        self.desc_text = tk.Text(
+            parent,
+            height=15,
+            width=60,
+            wrap="word",
+            relief="flat",
+            borderwidth=0,
+            font=("Segoe UI", 11),
+            bg=self.palette["card"],
+            fg=self.palette["text"],
+            insertbackground=self.palette["text"],
+        )
         desc_scroll = ttk.Scrollbar(parent, orient="vertical", command=self.desc_text.yview)
         self.desc_text.configure(yscrollcommand=desc_scroll.set)
         self.desc_text.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
@@ -745,8 +881,9 @@ class App(ttk.Window):
         # Copy button
         copy_btn = ttk.Button(
             parent, 
-            text=self.lang.get("copy_desc_button", "✂️ Copy Description"), 
-            command=self.ui_copy_description
+            text=self.lang.get("copy_desc_button", "Copy Description"), 
+            command=self.ui_copy_description,
+            **self._button_options("secondary"),
         )
         copy_btn.grid(row=1, column=0, columnspan=2, pady=(5, 0))
 
@@ -772,7 +909,7 @@ class App(ttk.Window):
         current_text = entry.get()
         if current_text == placeholder:
             entry.delete(0, tk.END)
-            entry.config(foreground=self.style.lookup('TEntry', 'foreground'))
+            entry.config(foreground=self._style.lookup('TEntry', 'foreground'))
 
     def _on_entry_focus_out(self, entry, placeholder):
         """Handle entry focus out - restore placeholder if empty."""
@@ -836,7 +973,7 @@ class App(ttk.Window):
         
         # Get search term, ignore if it's the placeholder
         search_term = search_var.get().strip().lower()
-        placeholder = self.lang.get("search_placeholder", "🔍 Search...").lower()
+        placeholder = self.lang.get("search_placeholder", "Search...").lower()
         if search_term == placeholder or not search_term:
             search_term = ""
             
@@ -905,7 +1042,7 @@ class App(ttk.Window):
             return
             
         search_term = self.tag_search_var.get().lower().strip()
-        placeholder = self.lang.get("search_placeholder", "🔍 Search...").lower()
+        placeholder = self.lang.get("search_placeholder", "Search...").lower()
         
         # Check if text is placeholder or empty
         is_placeholder = search_term == placeholder.lower() and self.tag_search_entry.cget('foreground') == "grey"
@@ -980,7 +1117,7 @@ class App(ttk.Window):
             return
             
         search_term = self.color_search_var.get().lower().strip()
-        placeholder = self.lang.get("search_placeholder", "🔍 Search...").lower()
+        placeholder = self.lang.get("search_placeholder", "Search...").lower()
         
         # Check if text is placeholder or empty
         is_placeholder = search_term == placeholder.lower() and self.color_search_entry.cget('foreground') == "grey"
@@ -1094,14 +1231,12 @@ class App(ttk.Window):
         selected_tags = [tag for tag, var in self.tag_vars.items() if var.get()]
         selected_colors = [color for color, var in self.color_vars.items() if var.get()]
         
-        # Combine for backend storage
-        all_selected_tags = selected_tags + selected_colors
-        
         proj_data = {
             "clothing_type": update_type if update_type is not None else self.clothing_type_var.get(),
             "state": self.state_entry.get(),
             "measurements": {field: entry.get() for field, entry in self.measurement_entries.items()},
-            "selected_tags": all_selected_tags,
+            "selected_tags": selected_tags,
+            "selected_colors": selected_colors,
             "custom_hashtags": self.custom_hashtags_entry.get(),
             "generated_description": self.desc_text.get(1.0, tk.END).strip(),
             "owner_letter": self.owner_entry.get(),
@@ -1142,19 +1277,25 @@ class App(ttk.Window):
         else:
             self.measurement_lframe.grid_remove()  # Hide the frame
             
+        selected_tag_set = set(proj.selected_tags) if has_proj else set()
+
         if not hasattr(self, 'tag_vars') or not self.tag_vars:
             self._create_tag_checkboxes()
         else:
             for tag, var in self.tag_vars.items():
-                var.set(has_proj and tag in proj.selected_tags)
+                var.set(tag in selected_tag_set)
             self._filter_tags_display()
         
         # Ensure color checkboxes are created
         if not hasattr(self, 'color_vars') or not self.color_vars:
             self._create_color_checkboxes()
         else:
+            selected_color_set = set(proj.selected_colors) if has_proj else set()
+            if has_proj and not selected_color_set and selected_tag_set:
+                # Backwards compatibility for sessions created before color separation
+                selected_color_set = {color for color in selected_tag_set if color in self.color_vars}
             for color, var in self.color_vars.items():
-                var.set(has_proj and color in proj.selected_tags)
+                var.set(color in selected_color_set)
             self._filter_colors_display()
             
         custom_val = proj.custom_hashtags if has_proj else ""
@@ -1213,19 +1354,26 @@ class App(ttk.Window):
                     item_frame = widget_entry['frame']
                     item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
                 else:
-                    item_frame = ttk.Frame(self.img_display_frame, relief="groove", borderwidth=1, padding=5)
+                    item_frame = ttk.Frame(
+                        self.img_display_frame,
+                        relief="groove",
+                        borderwidth=1,
+                        padding=5,
+                        style=self.panel_style,
+                    )
                     item_frame.grid(row=row_num, column=col_num, padx=5, pady=5, sticky="nsew")
                     item_frame.grid_columnconfigure(0, weight=1)
                     
-                    img_control_frame = ttk.Frame(item_frame)
+                    img_control_frame = ttk.Frame(item_frame, style=self.panel_style)
                     img_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
                     img_control_frame.grid_columnconfigure(0, weight=1)
                     
                     ttk.Button(
                         img_control_frame, 
-                        text=self.lang.get("remove_image_button", "🗑️"), 
-                        width=3,
-                        command=lambda idx=i: self.ui_remove_image(idx)
+                        text=self.lang.get("remove_image_button", "Remove Image"), 
+                        width=10,
+                        command=lambda idx=i: self.ui_remove_image(idx),
+                        **self._button_options("danger"),
                     ).grid(row=0, column=1, sticky="e")
                 
                 # Display original image thumbnail using cache
@@ -1264,17 +1412,29 @@ class App(ttk.Window):
                         proc_photo = ImageTk.PhotoImage(proc_thumb)
 
                         if nav_frame is None:
-                            nav_frame = ttk.Frame(item_frame)
+                            nav_frame = ttk.Frame(item_frame, style=self.panel_style)
                         nav_frame.grid(row=1, column=0, sticky="nsew")
                         nav_frame.grid_columnconfigure(1, weight=1)
 
                         if prev_btn is None:
-                            prev_btn = ttk.Button(nav_frame, text="<", width=3, command=lambda idx=i: self._cycle_background(idx, -1))
+                            prev_btn = ttk.Button(
+                                nav_frame,
+                                text="<",
+                                width=3,
+                                command=lambda idx=i: self._cycle_background(idx, -1),
+                                **self._button_options("link"),
+                            )
                         prev_btn.grid(row=0, column=0, padx=(0, 5))
                         prev_btn.configure(command=lambda idx=i: self._cycle_background(idx, -1))
 
                         if next_btn is None:
-                            next_btn = ttk.Button(nav_frame, text=">", width=3, command=lambda idx=i: self._cycle_background(idx, 1))
+                            next_btn = ttk.Button(
+                                nav_frame,
+                                text=">",
+                                width=3,
+                                command=lambda idx=i: self._cycle_background(idx, 1),
+                                **self._button_options("link"),
+                            )
                         next_btn.grid(row=0, column=2, padx=(5, 0))
                         next_btn.configure(command=lambda idx=i: self._cycle_background(idx, 1))
 
@@ -1370,7 +1530,10 @@ class App(ttk.Window):
         i = self.backend.get_current_project_index()
         total = self.backend.get_project_count()
         lbl = self.lang.get('project_label', 'Project')
-        self.project_label_var.set(f"{lbl} {i+1} of {total}" if total > 0 else f"{lbl} 0 of 0")
+        if total > 0 and i is not None:
+            self.project_label_var.set(f"{lbl} {i + 1} of {total}")
+        else:
+            self.project_label_var.set(f"{lbl} 0 of 0")
 
     def _highlight_selected_processed(self):
         """Highlight the selected image with a thicker border."""
@@ -1469,7 +1632,7 @@ class App(ttk.Window):
             return
 
         project_index = self.backend.get_current_project_index()
-        if project_index < 0:
+        if project_index is None or project_index < 0:
             return
 
         processed_item = proj.processed_images[image_index]
@@ -1537,10 +1700,10 @@ class App(ttk.Window):
             scale_val = round(float(self.slider_scale.get()), 2)
             self.label_vof.config(text=f"{vof_val:+.2f}")
             self.label_hof.config(text=f"{hof_val:+.2f}")
-            self.label_scale.config(text=f"{scale_val:.1f}×")
+            self.label_scale.config(text=f"{scale_val:.1f}x")
             
             rotation_angle = item.get("rotation_angle", 0)
-            self.rotation_angle_var.set(f"{rotation_angle}°")
+            self.rotation_angle_var.set(f"{rotation_angle} deg")
             
             skip_bg = item.get("skip_bg_removal", False)
             self.skip_bg_removal_var.set(skip_bg)
@@ -1557,11 +1720,11 @@ class App(ttk.Window):
             self.slider_scale.set(0.85)
             self.label_vof.config(text="+0.00")
             self.label_hof.config(text="+0.00")
-            self.label_scale.config(text="0.85×")
+            self.label_scale.config(text="0.85x")
             self.skip_bg_removal_var.set(False)
             self.item_use_solid_bg_var.set(False)
             self.bg_ratio_var.set(False)
-            self.rotation_angle_var.set("0°")
+            self.rotation_angle_var.set("0 deg")
         
         # Allow a brief delay to ensure all controls are updated before re-enabling events
         self.after(50, self._reenable_events)
@@ -1577,9 +1740,9 @@ class App(ttk.Window):
             return
         
         current_angle_str = self.rotation_angle_var.get()
-        current_angle = int(current_angle_str.rstrip('°'))
+        current_angle = int(current_angle_str.replace("deg", "").strip() or 0)
         new_angle = (current_angle - 90) % 360
-        self.rotation_angle_var.set(f"{new_angle}°")
+        self.rotation_angle_var.set(f"{new_angle} deg")
         
         # Apply the rotation
         self._process_with_indicator(self.ui_apply_adjustments)
@@ -1590,9 +1753,9 @@ class App(ttk.Window):
             return
         
         current_angle_str = self.rotation_angle_var.get()
-        current_angle = int(current_angle_str.rstrip('°'))
+        current_angle = int(current_angle_str.replace("deg", "").strip() or 0)
         new_angle = (current_angle + 90) % 360
-        self.rotation_angle_var.set(f"{new_angle}°")
+        self.rotation_angle_var.set(f"{new_angle} deg")
         
         # Apply the rotation
         self._process_with_indicator(self.ui_apply_adjustments)
@@ -1665,7 +1828,7 @@ class App(ttk.Window):
         
         self.label_vof.config(text=f"{vof_val:+.2f}")
         self.label_hof.config(text=f"{hof_val:+.2f}")
-        self.label_scale.config(text=f"{scale_val:.1f}×")
+        self.label_scale.config(text=f"{scale_val:.1f}x")
 
         self._schedule_slider_apply()
 
@@ -1730,7 +1893,7 @@ class App(ttk.Window):
     def prev_project(self):
         """Navigate to the previous project."""
         idx = self.backend.get_current_project_index()
-        if idx > 0:
+        if idx is not None and idx > 0:
             self._save_current_form_to_backend()
             self.backend.set_current_project_index(idx - 1)
             self.selected_processed_index = None
@@ -1740,7 +1903,7 @@ class App(ttk.Window):
         """Navigate to the next project."""
         idx = self.backend.get_current_project_index()
         count = self.backend.get_project_count()
-        if idx < count - 1:
+        if idx is not None and idx < count - 1:
             self._save_current_form_to_backend()
             self.backend.set_current_project_index(idx + 1)
             self.selected_processed_index = None
@@ -1825,7 +1988,7 @@ class App(ttk.Window):
     def ui_load_projects_zip(self):
         """Load projects from a zip file."""
         zip_path = filedialog.askopenfilename(
-            title=self.lang.get("load_zip_button", "📦 Zip"),
+            title=self.lang.get("load_zip_button", "Load Zip"),
             filetypes=[("Zip Files", "*.zip")],
             parent=self
         )
@@ -1841,11 +2004,17 @@ class App(ttk.Window):
         except Exception as e:
             success = False
             message = f"An unexpected error occurred during zip loading:\n{e}"
+            img_count = 0
             errors = []
         finally:
             self.config(cursor="")
 
         if success:
+            messagebox.showinfo(
+                self.lang.get("success", "Success"),
+                message,
+                parent=self
+            )
             if errors:
                 messagebox.showwarning(
                     self.lang.get("warning", "Warning"),
@@ -1866,15 +2035,17 @@ class App(ttk.Window):
         self._save_current_form_to_backend()
         # Use index-based naming
         project_count = self.backend.get_project_count()
-        new_index = self.backend.add_new_project(f"Project_{project_count + 1}")
-        self.backend.set_current_project_index(new_index)
+        self.backend.add_new_project(f"Project_{project_count + 1}")
+        new_index = self.backend.get_current_project_index()
+        if new_index is not None:
+            self.backend.set_current_project_index(new_index)
         self.selected_processed_index = None
         self.refresh_all_displays()
 
     def ui_remove_current_project(self):
         """Remove the current project after confirmation."""
         idx = self.backend.get_current_project_index()
-        if idx < 0:
+        if idx is None or idx < 0:
             messagebox.showwarning(
                 self.lang.get("warning", "Warning"), 
                 self.lang.get("no_project", "No project loaded or selected."), 
@@ -1903,8 +2074,15 @@ class App(ttk.Window):
         import threading
         
         idx = self.backend.get_current_project_index()
+        if idx is None or idx < 0:
+            messagebox.showwarning(
+                self.lang.get("warning", "Warning"),
+                self.lang.get("no_project", "No project loaded or selected."),
+                parent=self
+            )
+            return
+
         proj = self.backend.get_project(idx)
-        
         if not proj:
             messagebox.showwarning(
                 self.lang.get("warning", "Warning"), 
@@ -1960,7 +2138,12 @@ class App(ttk.Window):
             cancel_requested[0] = True
             status_var.set("Cancelling...")
         
-        cancel_button = ttk.Button(popup, text=self.lang.get("cancel", "Cancel"), command=cancel_processing)
+        cancel_button = ttk.Button(
+            popup,
+            text=self.lang.get("cancel", "Cancel"),
+            command=cancel_processing,
+            **self._button_options("danger"),
+        )
         cancel_button.pack(pady=5)
         
         popup.update()
@@ -2027,6 +2210,9 @@ class App(ttk.Window):
     def ui_remove_image(self, image_index):
         """Remove an image from the current project."""
         idx = self.backend.get_current_project_index()
+        if idx is None or idx < 0:
+            return
+
         proj = self.backend.get_project(idx)
         
         if not proj or image_index < 0 or image_index >= len(proj.clothing_images):
@@ -2056,7 +2242,7 @@ class App(ttk.Window):
     def ui_apply_adjustments(self):
         """Apply adjustment settings to the selected image."""
         idx = self.backend.get_current_project_index()
-        if idx < 0:
+        if idx is None or idx < 0:
             return
             
         if self.selected_processed_index is None:
@@ -2068,7 +2254,7 @@ class App(ttk.Window):
         scale = float(self.slider_scale.get())
         
         rotation_angle_str = self.rotation_angle_var.get()
-        rotation_angle = int(rotation_angle_str.rstrip('°'))
+        rotation_angle = int(rotation_angle_str.replace("deg", "").strip() or 0)
         
         is_horizontal = self.bg_ratio_var.get()
         skip_bg_removal = self.skip_bg_removal_var.get()
@@ -2129,7 +2315,7 @@ class App(ttk.Window):
     def ui_generate_current_description(self):
         """Generate description for the current project."""
         idx = self.backend.get_current_project_index()
-        if idx < 0:
+        if idx is None or idx < 0:
             messagebox.showwarning(
                 self.lang.get("warning", "Warning"), 
                 self.lang.get("no_project", "No project loaded or selected."), 
@@ -2173,8 +2359,15 @@ class App(ttk.Window):
     def ui_save_current_project_output(self):
         """Save the current project's processed images and description."""
         idx = self.backend.get_current_project_index()
+        if idx is None or idx < 0:
+            messagebox.showwarning(
+                self.lang.get("warning", "Warning"),
+                self.lang.get("no_project", "No project loaded or selected."),
+                parent=self
+            )
+            return
+
         proj = self.backend.get_project(idx)
-        
         if not proj:
             messagebox.showwarning(
                 self.lang.get("warning", "Warning"), 
@@ -2219,6 +2412,11 @@ class App(ttk.Window):
                 img_ok=img_ok,
                 img_err=img_err,
                 desc_ok=desc_status
+            )
+            messagebox.showinfo(
+                self.lang.get("success", "Success"),
+                summary,
+                parent=self
             )
         else:
             messagebox.showerror(
@@ -2275,7 +2473,7 @@ class App(ttk.Window):
         """Handle notebook tab change in editor window."""
         selected_tab = event.widget.tab(event.widget.select(), "text")
         # Refresh type listbox when clothing types tab is selected
-        if selected_tab in (self.lang.get("clothing_types_tab", "👕 Clothing Types"), "Clothing Types"):
+        if selected_tab in (self.lang.get("clothing_types_tab", "Clothing Types"), "Clothing Types"):
             self._editor_refresh_type_listbox()
 
     def _create_scrollable_frame(self, parent_notebook):
@@ -2309,15 +2507,15 @@ class App(ttk.Window):
         frame_left.grid_rowconfigure(2, weight=1)
         frame_left.grid_columnconfigure(0, weight=1)
         
-        ttk.Label(frame_left, text=self.lang.get("existing_clothing_types", "📦 Existing Clothing Types:")).grid(row=0, column=0, sticky="w")
+        ttk.Label(frame_left, text=self.lang.get("existing_clothing_types", "Existing Clothing Types:")).grid(row=0, column=0, sticky="w")
         
         # Search field
         self.editor_type_search_var = tk.StringVar()
         type_search_entry = ttk.Entry(frame_left, textvariable=self.editor_type_search_var, width=30)
         type_search_entry.grid(row=1, column=0, sticky="ew", pady=(2, 5))
         type_search_entry.bind("<KeyRelease>", self._editor_filter_types)
-        type_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(type_search_entry, self.lang.get("search_placeholder", "🔍 Search...")))
-        self._add_placeholder(type_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
+        type_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(type_search_entry, self.lang.get("search_placeholder", "Search...")))
+        self._add_placeholder(type_search_entry, self.lang.get("search_placeholder", "Search..."))
         
         # Type listbox
         listbox_frame = ttk.Frame(frame_left)
@@ -2353,7 +2551,12 @@ class App(ttk.Window):
         row_num += 2
         
         # Default tags section
-        tags_edit_lframe = ttk.LabelFrame(frame_right, text=self.lang.get("default_tags", "Default Tags (Auto-selected)"), padding=5)
+        tags_edit_lframe = ttk.LabelFrame(
+            frame_right,
+            text=self.lang.get("default_tags", "Default Tags (Auto-selected)"),
+            padding=5,
+            style=self.card_style,
+        )
         tags_edit_lframe.grid(row=row_num, column=0, sticky="nsew", pady=(0, 10))
         row_num += 1
         tags_edit_lframe.grid_columnconfigure(0, weight=1)
@@ -2364,8 +2567,8 @@ class App(ttk.Window):
         type_tag_search_entry = ttk.Entry(tags_edit_lframe, textvariable=self.editor_type_tag_search_var, width=25)
         type_tag_search_entry.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         type_tag_search_entry.bind("<KeyRelease>", self._editor_filter_type_tags)
-        type_tag_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(type_tag_search_entry, self.lang.get("search_placeholder", "🔍 Search...")))
-        self._add_placeholder(type_tag_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
+        type_tag_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(type_tag_search_entry, self.lang.get("search_placeholder", "Search...")))
+        self._add_placeholder(type_tag_search_entry, self.lang.get("search_placeholder", "Search..."))
         
         # Tags scrollable container
         self.editor_type_tags_canvas = tk.Canvas(tags_edit_lframe, borderwidth=0, highlightthickness=0, height=300)
@@ -2392,14 +2595,16 @@ class App(ttk.Window):
         
         ttk.Button(
             btn_frame, 
-            text=self.lang.get("add_update_button", "💾 Save"), 
-            command=self._editor_add_update_type
+            text=self.lang.get("add_update_button", "Save"), 
+            command=self._editor_add_update_type,
+            **self._button_options("primary"),
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             btn_frame, 
-            text=self.lang.get("delete_button", "🗑️ Delete"), 
-            command=self._editor_delete_type
+            text=self.lang.get("delete_button", "Delete"), 
+            command=self._editor_delete_type,
+            **self._button_options("danger"),
         ).pack(side=tk.LEFT, padx=5)
         
         self._editor_refresh_type_listbox()
@@ -2407,7 +2612,7 @@ class App(ttk.Window):
     def _editor_refresh_type_listbox(self, preserve_selection=True):
         """Refresh the clothing type listbox with filtered items."""
         items = list(self.backend.templates.keys())
-        new_button = self.lang.get("new_button", "➕ New")
+        new_button = self.lang.get("new_button", "New")
         self._refresh_listbox_with_search(
             self.type_listbox, 
             self.editor_type_search_var, 
@@ -2439,7 +2644,7 @@ class App(ttk.Window):
             return
             
         type_name = self.type_listbox.get(selection[0])
-        if type_name == self.lang.get("new_button", "➕ New"):
+        if type_name == self.lang.get("new_button", "New"):
             self.editor_type_name_entry.delete(0, tk.END)
             self.editor_fields_entry.delete(0, tk.END)
             self._editor_rebuild_type_tag_checkboxes([])
@@ -2501,7 +2706,7 @@ class App(ttk.Window):
     def _editor_filter_type_tags(self, event=None):
         """Filter default tag checkboxes based on search text."""
         search_term = self.editor_type_tag_search_var.get().lower().strip()
-        placeholder = self.lang.get("search_placeholder", "🔍 Search...").lower()
+        placeholder = self.lang.get("search_placeholder", "Search...").lower()
         
         # Simplified check for showing all tags
         # The issue was in the complex search_entry detection that wasn't reliable
@@ -2579,7 +2784,7 @@ class App(ttk.Window):
             return
             
         type_name = self.type_listbox.get(selection[0])
-        if type_name == self.lang.get("new_button", "➕ New"):
+        if type_name == self.lang.get("new_button", "New"):
             return
             
         # Confirm deletion
@@ -2638,15 +2843,15 @@ class App(ttk.Window):
         frame_left.grid_rowconfigure(2, weight=1)
         frame_left.grid_columnconfigure(0, weight=1)
         
-        ttk.Label(frame_left, text=self.lang.get("existing_tag_mappings", "🏷️ Existing Tag Mappings:")).grid(row=0, column=0, sticky="w")
+        ttk.Label(frame_left, text=self.lang.get("existing_tag_mappings", "Existing Tag Mappings:")).grid(row=0, column=0, sticky="w")
         
         # Search field
         self.editor_tag_search_var = tk.StringVar()
         tag_search_entry = ttk.Entry(frame_left, textvariable=self.editor_tag_search_var, width=30)
         tag_search_entry.grid(row=1, column=0, sticky="ew", pady=(2, 5))
         tag_search_entry.bind("<KeyRelease>", self._editor_filter_tags)
-        tag_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(tag_search_entry, self.lang.get("search_placeholder", "🔍 Search...")))
-        self._add_placeholder(tag_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
+        tag_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(tag_search_entry, self.lang.get("search_placeholder", "Search...")))
+        self._add_placeholder(tag_search_entry, self.lang.get("search_placeholder", "Search..."))
         
         # Tag listbox
         listbox_frame = ttk.Frame(frame_left)
@@ -2687,14 +2892,16 @@ class App(ttk.Window):
         
         ttk.Button(
             btn_frame, 
-            text=self.lang.get("add_update_button", "💾 Save"), 
-            command=self._editor_add_update_tag
+            text=self.lang.get("add_update_button", "Save"), 
+            command=self._editor_add_update_tag,
+            **self._button_options("primary"),
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             btn_frame, 
-            text=self.lang.get("delete_button", "🗑️ Delete"), 
-            command=self._editor_delete_tag
+            text=self.lang.get("delete_button", "Delete"), 
+            command=self._editor_delete_tag,
+            **self._button_options("danger"),
         ).pack(side=tk.LEFT, padx=5)
         
         self._editor_refresh_tag_listbox()
@@ -2703,7 +2910,7 @@ class App(ttk.Window):
         """Refresh the tag mapping listbox with filtered items."""
         # Only include non-color tags for the tag mappings editor
         items = [tag for tag in self.backend.hashtag_mapping.keys() if not tag.endswith(" color")]
-        new_button = self.lang.get("new_button", "➕ New")
+        new_button = self.lang.get("new_button", "New")
         self._refresh_listbox_with_search(
             self.tag_editor_listbox, 
             self.editor_tag_search_var, 
@@ -2732,7 +2939,7 @@ class App(ttk.Window):
             return
             
         tag = self.tag_editor_listbox.get(selection[0])
-        if tag == self.lang.get("new_button", "➕ New"):
+        if tag == self.lang.get("new_button", "New"):
             self.editor_tag_entry.delete(0, tk.END)
             self.editor_hashtags_entry.delete(0, tk.END)
         else:
@@ -2810,7 +3017,7 @@ class App(ttk.Window):
             return
             
         tag = self.tag_editor_listbox.get(selection[0])
-        if tag == self.lang.get("new_button", "➕ New"):
+        if tag == self.lang.get("new_button", "New"):
             return
             
         # Confirm deletion
@@ -2879,8 +3086,8 @@ class App(ttk.Window):
         color_search_entry = ttk.Entry(frame_left, textvariable=self.editor_color_search_var, width=30)
         color_search_entry.grid(row=1, column=0, sticky="ew", pady=(2, 5))
         color_search_entry.bind("<KeyRelease>", self._editor_filter_colors)
-        color_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(color_search_entry, self.lang.get("search_placeholder", "🔍 Search...")))
-        self._add_placeholder(color_search_entry, self.lang.get("search_placeholder", "🔍 Search..."))
+        color_search_entry.bind("<FocusIn>", lambda e: self._on_entry_focus_in(color_search_entry, self.lang.get("search_placeholder", "Search...")))
+        self._add_placeholder(color_search_entry, self.lang.get("search_placeholder", "Search..."))
         
         # Color listbox
         listbox_frame = ttk.Frame(frame_left)
@@ -2928,14 +3135,16 @@ class App(ttk.Window):
         
         ttk.Button(
             btn_frame, 
-            text=self.lang.get("add_update_button", "💾 Save"), 
-            command=self._editor_add_update_color
+            text=self.lang.get("add_update_button", "Save"), 
+            command=self._editor_add_update_color,
+            **self._button_options("primary"),
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             btn_frame, 
-            text=self.lang.get("delete_button", "🗑️ Delete"), 
-            command=self._editor_delete_color
+            text=self.lang.get("delete_button", "Delete"), 
+            command=self._editor_delete_color,
+            **self._button_options("danger"),
         ).pack(side=tk.LEFT, padx=5)
         
         self._editor_refresh_color_listbox()
@@ -2944,7 +3153,7 @@ class App(ttk.Window):
         """Refresh the color listbox with filtered items."""
         # Only include color mappings (keys ending with " color")
         items = [tag for tag in self.backend.hashtag_mapping.keys() if tag.endswith(" color")]
-        new_button = self.lang.get("new_button", "➕ New")
+        new_button = self.lang.get("new_button", "New")
         self._refresh_listbox_with_search(
             self.color_editor_listbox, 
             self.editor_color_search_var, 
@@ -2974,7 +3183,7 @@ class App(ttk.Window):
             return
                 
         color_tag = self.color_editor_listbox.get(selection[0])
-        if color_tag == self.lang.get("new_button", "➕ New"):
+        if color_tag == self.lang.get("new_button", "New"):
             self.editor_color_entry.delete(0, tk.END)
             self.editor_color_hashtags_entry.delete(0, tk.END)
             self.editor_color_preview.config(background="#ffffff")
@@ -3055,7 +3264,7 @@ class App(ttk.Window):
             return
                 
         color_tag = self.color_editor_listbox.get(selection[0])
-        if color_tag == self.lang.get("new_button", "➕ New"):
+        if color_tag == self.lang.get("new_button", "New"):
             return
                 
         color_name = color_tag.replace(" color", "")
@@ -3116,42 +3325,24 @@ class App(ttk.Window):
             text=self.lang.get("bg_folder_info", "Backgrounds are stored in the 'bg' folder next to the application")
         ).grid(row=row_num, column=0, sticky="w", pady=(0, 10))
         row_num += 1
-        
-        add_files_frame = ttk.Frame(parent)
-        add_files_frame.grid(row=row_num, column=0, sticky="ew", pady=(0, 5))
-        add_files_frame.grid_columnconfigure(0, weight=1)
-        
-        ttk.Button(
-            add_files_frame, 
-            text=self.lang.get("add_bg_files", "Add Background Files..."),
-            command=self._editor_add_bg_files
-        ).grid(row=0, column=0, sticky="w")
-        
+
+        actions_frame = ttk.Frame(parent, style=self.panel_style)
+        actions_frame.grid(row=row_num, column=0, sticky="w", pady=(0, 10))
         row_num += 1
-                
-        frame_select = ttk.Frame(parent)
-        frame_select.grid(row=row_num, column=0, sticky="ew", pady=(0, 10))
-        row_num += 1
-        frame_select.grid_columnconfigure(1, weight=1)
-        
-        ttk.Label(frame_select, text=self.lang.get("select_new_bg_folder", "Import from folder:")).grid(
-            row=0, column=0, sticky="w", padx=(0, 5)
-        )
-        self.editor_bg_folder_entry = ttk.Entry(frame_select)
-        self.editor_bg_folder_entry.grid(row=0, column=1, sticky="ew", padx=(0, 5))
         
         ttk.Button(
-            frame_select, 
-            text=self.lang.get("browse_button", "Browse..."), 
-            command=self._editor_browse_bg_folder, 
-            width=10
-        ).grid(row=0, column=2, padx=(0, 5))
+            actions_frame, 
+            text=self.lang.get("open_bg_folder_button", "Open Background Folder"), 
+            command=self._open_background_folder_native,
+            **self._button_options("secondary"),
+        ).grid(row=0, column=0, padx=(0, 10))
         
         ttk.Button(
-            frame_select, 
-            text=self.lang.get("load_from_folder_button", "Load from Folder"), 
-            command=self._editor_load_bg_from_folder
-        ).grid(row=0, column=3)
+            actions_frame, 
+            text=self.lang.get("refresh_bg_list", "Refresh List"), 
+            command=self._editor_refresh_bg_listbox,
+            **self._button_options("link"),
+        ).grid(row=0, column=1)
                 
         # Note about solid background
         ttk.Label(
@@ -3187,7 +3378,8 @@ class App(ttk.Window):
         ttk.Button(
             remove_frame,
             text=self.lang.get("remove_selected_bg", "Remove Selected"),
-            command=self._editor_remove_selected_background
+            command=self._editor_remove_selected_background,
+            **self._button_options("danger"),
         ).pack(side=tk.LEFT)
         
         # Populate the listbox
@@ -3207,112 +3399,38 @@ class App(ttk.Window):
         for path in self.backend.backgrounds:
             self.editor_bg_listbox.insert(tk.END, os.path.basename(path))
 
-    def _editor_add_bg_files(self):
-        """Add background image files from file picker."""
-        file_paths = filedialog.askopenfilenames(
-            title=self.lang.get("add_bg_files", "Add Background Files"),
-            filetypes=[("Image Files", "*.png *.jpg *.jpeg *.webp"), ("All Files", "*.*")],
-            parent=self.editor_window
-        )
-        
-        if not file_paths:
-            return
-            
-        # Call backend method to add background files
-        added_count, skipped = self.backend.add_background_files(file_paths)
-        
-        if added_count > 0:
-            self._editor_refresh_bg_listbox()
-            
-            msg = self.lang.get("bg_added_msg", "Added {count} new background(s).").format(count=added_count)
-            if skipped:
-                skipped_list = "\n".join([f"{name} - {reason}" for name, reason in skipped])
-                msg += f"\n\nSkipped files:\n{skipped_list}"
-                
-            messagebox.showinfo(
-                self.lang.get("success", "Success"), 
-                msg, 
-                parent=self.editor_window
-            )
-            self.refresh_right_display()
-        else:
-            # If nothing was added but files were selected, show skipped files
-            if skipped:
-                skipped_list = "\n".join([f"{name} - {reason}" for name, reason in skipped])
-                msg = f"No files added.\n\nSkipped files:\n{skipped_list}"
-                messagebox.showinfo(
-                    self.lang.get("info", "Info"), 
-                    msg, 
-                    parent=self.editor_window
-                )
+    def _open_background_folder_native(self):
+        """Open the background folder in the user's native file explorer."""
+        folder = os.path.abspath(BG_DIR)
+        os.makedirs(folder, exist_ok=True)
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(folder)
+            elif sys.platform == "darwin":
+                subprocess.run(["open", folder], check=False)
             else:
-                messagebox.showinfo(
-                    self.lang.get("info", "Info"), 
-                    self.lang.get("bg_none_added_msg", "No new background images found."), 
-                    parent=self.editor_window
-                )
-                
-        if self.editor_window:
-            self.editor_window.lift()
+                subprocess.run(["xdg-open", folder], check=False)
+        except Exception as exc:
+            messagebox.showerror(
+                self.lang.get("error", "Error"),
+                self.lang.get("open_bg_folder_error", "Could not open background folder:\n{error}").format(error=exc),
+                parent=self,
+            )
+
+    def _editor_add_bg_files(self):
+        """Legacy hook retained for backwards compatibility."""
+        self._open_background_folder_native()
+        self._editor_refresh_bg_listbox()
 
     def _editor_browse_bg_folder(self):
-        """Browse for a background folder."""
-        folder = filedialog.askdirectory(
-            title=self.lang.get("select_bg_folder", "Default Backgrounds Folder:"),
-            initialdir=".",
-            parent=self.editor_window
-        )
-        
-        if folder:
-            self.editor_bg_folder_entry.delete(0, tk.END)
-            self.editor_bg_folder_entry.insert(tk.END, folder)
+        """Legacy hook retained for backwards compatibility."""
+        self._open_background_folder_native()
 
     def _editor_load_bg_from_folder(self):
-        """Load background images from a folder."""
-        folder = self.editor_bg_folder_entry.get().strip()
-        if not folder or not os.path.isdir(folder):
-            messagebox.showwarning(
-                self.lang.get("input_error", "Input Error"), 
-                self.lang.get("bg_invalid_folder", "Please select a valid folder."), 
-                parent=self.editor_window
-            )
-            return
-            
-        added_count, skipped = self.backend.add_backgrounds_from_folder(folder)
-        
-        if added_count > 0:
-            self._editor_refresh_bg_listbox()
-            
-            msg = self.lang.get("bg_added_msg", "Added {count} new background(s).").format(count=added_count)
-            if skipped:
-                skipped_list = "\n".join([f"{name} - {reason}" for name, reason in skipped])
-                msg += f"\n\nSkipped files:\n{skipped_list}"
-                
-            messagebox.showinfo(
-                self.lang.get("success", "Success"), 
-                msg, 
-                parent=self.editor_window
-            )
-            self.refresh_right_display()
-        else:
-            # If nothing was added but folder had files, show skipped files
-            if skipped:
-                skipped_list = "\n".join([f"{name} - {reason}" for name, reason in skipped])
-                msg = f"No files added.\n\nSkipped files:\n{skipped_list}"
-                messagebox.showinfo(
-                    self.lang.get("info", "Info"), 
-                    msg, 
-                    parent=self.editor_window
-                )
-            else:
-                messagebox.showinfo(
-                    self.lang.get("info", "Info"), 
-                    self.lang.get("bg_none_added_msg", "No new background images found."), 
-                    parent=self.editor_window
-                )
-            
-        if self.editor_window:
-            self.editor_window.lift()
+        """Legacy hook retained for backwards compatibility."""
+        self._open_background_folder_native()
+        self._editor_refresh_bg_listbox()
+
 
     def _editor_remove_selected_background(self):
         """Remove the selected background file."""
@@ -3424,7 +3542,8 @@ class App(ttk.Window):
         canvas_dimensions = ttk.LabelFrame(
             parent, 
             text=self.lang.get("canvas_dimensions", "Canvas Dimensions"), 
-            padding=5
+            padding=5,
+            style=self.card_style,
         )
         canvas_dimensions.grid(row=row_num, column=0, columnspan=2, sticky="ew", pady=10)
         canvas_dimensions.grid_columnconfigure(1, weight=1)
@@ -3471,14 +3590,15 @@ class App(ttk.Window):
         self.editor_h_height_entry.grid(row=3, column=3, sticky="w")
         self.editor_h_height_entry.insert(tk.END, str(self.backend.canvas_height_h))
         
-        save_btn_frame = ttk.Frame(parent)
+        save_btn_frame = ttk.Frame(parent, style=self.panel_style)
         save_btn_frame.grid(row=row_num, column=0, columnspan=2, sticky="ew", pady=20)
         save_btn_frame.grid_columnconfigure(0, weight=1)
         
         ttk.Button(
             save_btn_frame,
-            text=self.lang.get("save_all_settings", "💾 Save All Settings"),
-            command=self._editor_save_all_settings
+            text=self.lang.get("save_all_settings", "Save All Settings"),
+            command=self._editor_save_all_settings,
+            **self._button_options("primary"),
         ).grid(row=0, column=1, sticky="e")
 
     def _editor_save_all_settings(self):
@@ -3520,4 +3640,3 @@ class App(ttk.Window):
             
         if self.editor_window:
             self.editor_window.lift()
-

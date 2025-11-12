@@ -202,9 +202,10 @@ class Backend:
 
         return True, errors
 
-    def load_projects_from_zip(self, zip_path: str) -> Tuple[int, List[str]]:
+    def load_projects_from_zip(self, zip_path: str) -> Tuple[bool, str, int, List[str]]:
         errors: List[str] = []
         project_count = 0
+        image_count = 0
 
         try:
             self.temp_extract_dir = tempfile.mkdtemp()
@@ -243,9 +244,11 @@ class Backend:
                     img_path = os.path.join(item_path, filename)
                     img = self._load_image(img_path)
                     if img is None:
+                        errors.append(f"Failed to load image '{filename}' in '{item}'.")
                         continue
                     project.clothing_images.append({"path": img_path, "image": img})
                     images_loaded = True
+                    image_count += 1
 
                 if images_loaded:
                     self.projects.append(project)
@@ -256,7 +259,17 @@ class Backend:
         except Exception as exc:
             errors.append(f"Error extracting ZIP: {exc}")
 
-        return project_count, errors
+        if project_count == 0:
+            if not errors:
+                errors.append("Archive did not contain any folders with usable images.")
+            return False, "No valid projects found in archive.", image_count, errors
+
+        return (
+            True,
+            f"Loaded {project_count} project(s) with {image_count} image(s).",
+            image_count,
+            errors,
+        )
 
     def get_project_count(self) -> int:
         return len(self.projects)
@@ -395,10 +408,19 @@ class Backend:
         errors: List[str] = []
         total_images = len(project.clothing_images)
         current_global_setting = self.use_solid_bg
+        cancelled = False
+
+        callback = self.progress_callback
 
         for idx, item in enumerate(project.clothing_images):
-            if self.progress_callback:
-                self.progress_callback(idx + 1, total_images, f"Processing image {idx + 1}/{total_images}")
+            if callback:
+                should_continue = callback(
+                    idx + 1, total_images, f"Processing image {idx + 1}/{total_images}"
+                )
+                if should_continue is False:
+                    cancelled = True
+                    errors.append("Processing cancelled by user.")
+                    break
             try:
                 original_img = item["image"]
                 processed = self._ensure_processed_entry(project, idx, False)
@@ -443,10 +465,11 @@ class Backend:
             except Exception as exc:
                 errors.append(f"Error processing image {idx}: {exc}")
 
-        if self.progress_callback:
-            self.progress_callback(total_images, total_images, "Processing complete")
+        if callback and not cancelled:
+            callback(total_images, total_images, "Processing complete")
 
-        return True, errors
+        self.progress_callback = None
+        return (not cancelled), errors
 
     def process_project_images(self, project_index: int) -> Tuple[bool, List[str]]:
         future = self.process_project_images_async(project_index)
