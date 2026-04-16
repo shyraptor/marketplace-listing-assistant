@@ -107,10 +107,20 @@ class App(ttk.Window):
             "text_bright": "#ffffff",
             "muted": "#8b95a8",
             "accent": "#4fc3f7",
+            "accent_bright": "#6dd0ff",
             "accent_dim": "#2a6f8f",
-            "danger": "#ef5350",
+            "accent_text_on": "#0b1a2e",
+            "btn_bg": "#1f2f52",
+            "btn_bg_hover": "#2a3e6b",
+            "btn_bg_pressed": "#16233f",
             "success": "#66bb6a",
-            "separator": "#3a517d",
+            "success_bg": "#2e7d32",
+            "success_hover": "#388e3c",
+            "danger": "#ef5350",
+            "danger_bg": "#3c1f22",
+            "danger_hover": "#5c2a2f",
+            "danger_fg": "#ef5350",
+            "separator": "#5a7bad",
         }
         fonts = {
             "base": ("Segoe UI", 10),
@@ -178,27 +188,32 @@ class App(ttk.Window):
         style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
         style.configure("TNotebook.Tab", font=fonts["button"], padding=[14, 7])
 
-        # Buttons
-        style.configure("AppPrimary.TButton", font=fonts["button"], padding=8)
-        style.configure("AppSecondary.TButton", font=fonts["button"], padding=6)
-        style.configure("AppLink.TButton", font=fonts["button"], padding=4)
-        style.configure("AppDanger.TButton", font=fonts["button"], padding=6)
-        style.map("AppDanger.TButton", foreground=[("!disabled", self.palette["danger"])])
+        # Buttons: font + padding only (color overrides interact badly with ttkbootstrap asset gen)
+        style.configure("AppCTA.TButton", font=("Segoe UI Semibold", 10), padding=(14, 8))
+        style.configure("AppProceed.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
+        style.configure("AppSubtle.TButton", font=("Segoe UI", 10), padding=(10, 6))
+        style.configure("AppGo.TButton", font=("Segoe UI Semibold", 10), padding=(12, 7))
+        style.configure("AppRemove.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
+        style.configure("AppLink.TButton", font=("Segoe UI", 10), padding=(8, 6))
 
         self.frame_style = "App.TFrame"
         self.panel_style = "Panel.TFrame"
         self.toolbar_style = "Toolbar.TFrame"
         self.card_style = "Card.TLabelframe"
+        # Use bootstyle for colors (bootstyle + style.configure for color hangs ttkbootstrap).
+        # Colors from solar theme: info=cyan (closest to our accent), success=green,
+        # danger=red, secondary=gray. Outline variants dim the background for secondary use.
         self.button_styles = {
-            "primary": {"style": "AppPrimary.TButton", "bootstyle": "primary"},
-            "secondary": {"style": "AppSecondary.TButton", "bootstyle": "secondary"},
-            "link": {"style": "AppLink.TButton", "bootstyle": "link"},
-            "danger": {"style": "AppDanger.TButton", "bootstyle": "danger"},
-            "success": {"style": "AppPrimary.TButton", "bootstyle": "success"},
+            "cta":       {"style": "AppCTA.TButton",     "bootstyle": "info"},
+            "primary":   {"style": "AppProceed.TButton", "bootstyle": "info-outline"},
+            "secondary": {"style": "AppSubtle.TButton",  "bootstyle": "secondary-outline"},
+            "success":   {"style": "AppGo.TButton",      "bootstyle": "success"},
+            "danger":    {"style": "AppRemove.TButton",  "bootstyle": "danger-outline"},
+            "link":      {"style": "AppLink.TButton",    "bootstyle": "link"},
         }
 
     def _button_options(self, variant: str = "secondary") -> dict:
-        """Return shared style/bootstyle options for ttk Buttons."""
+        """Return shared style options for ttk Buttons."""
         cfg = self.button_styles.get(variant, self.button_styles["secondary"])
         return {"style": cfg["style"], "bootstyle": cfg["bootstyle"]}
 
@@ -251,7 +266,7 @@ class App(ttk.Window):
             nav_frame,
             text=self.lang.get("new_project_button", "New Project"),
             command=self.ui_add_new_project,
-            **self._button_options("primary"),
+            **self._button_options("secondary"),
         ).grid(row=0, column=0, padx=4)
         
         self.btn_prev_project = ttk.Button(
@@ -294,7 +309,7 @@ class App(ttk.Window):
             file_ops_frame,
             text=self.lang.get("add_images_button", "Add Images"),
             command=self.ui_load_single_project_images,
-            **self._button_options("secondary"),
+            **self._button_options("cta"),
         ).grid(row=0, column=0, padx=4)
 
         ttk.Button(
@@ -325,14 +340,14 @@ class App(ttk.Window):
             process_frame,
             text=self.lang.get("process_images_button", "Process"),
             command=self.ui_process_current_project_images,
-            **self._button_options("primary"),
+            **self._button_options("cta"),
         ).grid(row=0, column=1, padx=4)
 
         ttk.Button(
             process_frame,
             text=self.lang.get("generate_desc_button", "Generate Description"),
             command=self.ui_generate_current_description,
-            **self._button_options("secondary"),
+            **self._button_options("primary"),
         ).grid(row=0, column=2, padx=4)
 
         ttk.Button(
