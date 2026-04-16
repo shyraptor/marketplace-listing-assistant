@@ -396,10 +396,9 @@ class App(ttk.Window):
         row_index = 0
         
         # Clothing Type
-        type_frame = ttk.LabelFrame(
+        type_frame = ttk.Labelframe(
             parent,
             text=self.lang.get("clothing_type", "Clothing Type:"),
-            padding="5",
             style=self.card_style,
         )
         type_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
@@ -413,10 +412,9 @@ class App(ttk.Window):
         row_index += 1
         
         # Condition/State
-        state_frame = ttk.LabelFrame(
+        state_frame = ttk.Labelframe(
             parent,
             text=self.lang.get("state", "Condition:"),
-            padding="5",
             style=self.card_style,
         )
         state_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
@@ -428,10 +426,9 @@ class App(ttk.Window):
         row_index += 1
         
         # Measurements
-        self.measurement_lframe = ttk.LabelFrame(
+        self.measurement_lframe = ttk.Labelframe(
             parent,
             text=self.lang.get("measurements", "Measurements:"),
-            padding="5",
             style=self.card_style,
         )
         self.measurement_lframe.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
@@ -439,10 +436,9 @@ class App(ttk.Window):
         row_index += 1
         
         # Custom Hashtags
-        custom_frame = ttk.LabelFrame(
+        custom_frame = ttk.Labelframe(
             parent,
             text=self.lang.get("custom_hashtags", "Custom Hashtags (#tag1, #tag2)"),
-            padding="5",
             style=self.card_style,
         )
         custom_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
@@ -462,10 +458,9 @@ class App(ttk.Window):
         row_index += 1
         
         # Storage Info
-        storage_frame = ttk.LabelFrame(
+        storage_frame = ttk.Labelframe(
             parent,
             text=self.lang.get("storage_info", "Storage Info"),
-            padding="5",
             style=self.card_style,
         )
         storage_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
@@ -483,10 +478,9 @@ class App(ttk.Window):
 
     def _create_tags_section(self, parent, row_idx):
         """Create the tags selection section with search and checkboxes."""
-        tags_frame = ttk.LabelFrame(
+        tags_frame = ttk.Labelframe(
             parent,
             text=self.lang.get("tags", "Tags:"),
-            padding="5",
             style=self.card_style,
         )
         tags_frame.grid(row=row_idx, column=0, sticky="nsew", pady=(0, 3))
@@ -529,10 +523,9 @@ class App(ttk.Window):
 
     def _create_colors_section(self, parent, row_idx):
         """Create the colors selection section with search and checkboxes."""
-        colors_frame = ttk.LabelFrame(
+        colors_frame = ttk.Labelframe(
             parent,
             text=self.lang.get("colors", "Colors:"),
-            padding="5",
             style=self.card_style,
         )
         colors_frame.grid(row=row_idx, column=0, sticky="nsew", pady=(0, 3))
@@ -647,10 +640,9 @@ class App(ttk.Window):
 
     def _create_adjustment_controls(self, parent):
         """Create the image adjustment controls."""
-        adj_frame = ttk.LabelFrame(
-            parent, 
-            text=self.lang.get("adjustments_label", "Adjust Selected Image"), 
-            padding="10",
+        adj_frame = ttk.Labelframe(
+            parent,
+            text=self.lang.get("adjustments_label", "Adjust Selected Image"),
             style=self.card_style,
         )
         adj_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(5, 0))
@@ -2485,10 +2477,9 @@ class App(ttk.Window):
         row_num += 2
         
         # Default tags section
-        tags_edit_lframe = ttk.LabelFrame(
+        tags_edit_lframe = ttk.Labelframe(
             frame_right,
             text=self.lang.get("default_tags", "Default Tags (Auto-selected)"),
-            padding=5,
             style=self.card_style,
         )
         tags_edit_lframe.grid(row=row_num, column=0, sticky="nsew", pady=(0, 10))
@@ -3448,10 +3439,9 @@ class App(ttk.Window):
         row_num += 1
         
         # Canvas dimensions section
-        canvas_dimensions = ttk.LabelFrame(
-            parent, 
-            text=self.lang.get("canvas_dimensions", "Canvas Dimensions"), 
-            padding=5,
+        canvas_dimensions = ttk.Labelframe(
+            parent,
+            text=self.lang.get("canvas_dimensions", "Canvas Dimensions"),
             style=self.card_style,
         )
         canvas_dimensions.grid(row=row_num, column=0, columnspan=2, sticky="ew", pady=10)
