@@ -137,7 +137,7 @@ class App(ttk.Window):
         c = style.colors
         c.primary = self.palette["accent"]
         c.secondary = self.palette["btn_bg"]
-        c.info = self.palette["accent"]
+        c.info = self.palette["accent_dim"]
         c.success = self.palette["success_bg"]
         c.danger = self.palette["danger_fg"]
         c.warning = "#f0a020"
@@ -231,13 +231,14 @@ class App(ttk.Window):
             darkcolor=self.palette["accent_dim"],
         )
 
-        # Combobox layout fix: the default solar layout anchors the dropdown
-        # arrow to the bottom (sticky='s'), which looks misaligned against
-        # our themed field. Re-layout so the arrow centers vertically.
+        # Combobox layout fix: default solar layout anchors the arrow at
+        # sticky='s' (bottom). Change to no sticky so the arrow renders at
+        # its natural size without vertical stretching (which duplicates
+        # the glyph as a "doubled triangle" artifact).
         try:
             style.layout("TCombobox", [
                 ("combo.Spinbox.field", {"side": "top", "sticky": "we", "children": [
-                    ("Combobox.downarrow", {"side": "right", "sticky": "ns"}),
+                    ("Combobox.downarrow", {"side": "right", "sticky": ""}),
                     ("Combobox.padding", {"expand": "1", "sticky": "nswe", "children": [
                         ("Combobox.textarea", {"sticky": "nswe"}),
                     ]}),
@@ -259,8 +260,11 @@ class App(ttk.Window):
                         foreground=self.palette["accent_text_on"])
         style.configure("primary.Outline.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6),
                         background=self.palette["card"])
+        style.configure("info.TButton",            font=("Segoe UI Semibold", 10), padding=(12, 7),
+                        foreground=self.palette["text_bright"])
         style.configure("secondary.TButton",       font=("Segoe UI", 10),          padding=(10, 6))
-        style.configure("success.TButton",         font=("Segoe UI Semibold", 10), padding=(12, 7))
+        style.configure("success.TButton",         font=("Segoe UI Semibold", 10), padding=(12, 7),
+                        foreground=self.palette["text_bright"])
         style.configure("danger.Outline.TButton",  font=("Segoe UI Semibold", 10), padding=(10, 6),
                         background=self.palette["card"])
         style.configure("Link.TButton",            font=("Segoe UI", 10),          padding=(8, 6),
@@ -284,14 +288,15 @@ class App(ttk.Window):
         self.card_frame_style = "Card.TFrame"
         # Bootstyle-only — style= would defeat ttkbootstrap's per-bootstyle color.
         # Padding/font come from style.configure on the bootstyle-generated names.
-        # Filled "info" / "success" bootstyles hang in the toolbar context due
-        # to a ttkbootstrap 1.20.2 asset-regen bug; the toolbar Generate/Save
-        # buttons use tk.Button directly. Editor dialogs use these variants
-        # safely because they live in separate Toplevel windows with no
-        # preceding round-toggle to trip the bug.
+        # "primary" variant uses bootstyle="info" (info=accent_dim, a muted
+        # cyan) to give Generate a filled intermediate between the bright
+        # CTAs and secondary buttons. The round-toggle uses primary color
+        # (not success) so its asset generation doesn't taint the success
+        # cache — that's what lets us use bootstyle="success" for Save
+        # without hitting the ttkbootstrap 1.20.2 asset-regen hang.
         self.button_styles = {
             "cta":       {"bootstyle": "primary"},
-            "primary":   {"bootstyle": "primary-outline"},
+            "primary":   {"bootstyle": "info"},
             "secondary": {"bootstyle": "secondary"},
             "success":   {"bootstyle": "success"},
             "danger":    {"bootstyle": "danger-outline"},
@@ -409,7 +414,10 @@ class App(ttk.Window):
         tk.Frame(top_frame, bg=self.palette["separator"], width=2).grid(
             row=0, column=3, sticky="ns", padx=8, pady=4)
 
-        # Processing/Generate/Save row.
+        # Processing/Generate/Save row. Generate and Save use tk.Button
+        # (not ttk.Button) because ttk.Button with bootstyle="info" or
+        # "success" hangs ttkbootstrap 1.20.2's asset regenerator in this
+        # nested-toolbar init flow (verified bug).
         process_frame = ttk.Frame(top_frame, style=self.toolbar_style)
         process_frame.grid(row=0, column=4, sticky="we")
 
@@ -419,7 +427,7 @@ class App(ttk.Window):
             text=self.lang.get("use_solid_bg", "Use solid background color"),
             variable=self.global_use_solid_bg_var,
             command=self._on_global_use_solid_bg_change,
-            bootstyle="round-toggle",
+            bootstyle="primary round-toggle",
         ).grid(row=0, column=0, padx=(0, 10))
 
         ttk.Button(
@@ -429,16 +437,16 @@ class App(ttk.Window):
             **self._button_options("cta"),
         ).grid(row=0, column=1, padx=4)
 
-        # Generate uses tk.Button (dimmer cyan fill) — see Save comment below.
+        # Generate: tk.Button with dimmer cyan fill. Fixed width="14" so
+        # emoji trailing metrics don't throw off the centered text.
         _gen_btn = tk.Button(
             process_frame,
             text=self.lang.get("generate_desc_button", "Generate Description"),
             command=self.ui_generate_current_description,
             relief="flat", borderwidth=0, bd=0, highlightthickness=0,
-            padx=14, pady=8,
+            width=16, pady=7,
             font=("Segoe UI Semibold", 10),
             cursor="hand2",
-            anchor="center", justify="center", compound="none",
         )
         _gen_btn.configure(
             bg=self.palette["accent_dim"],
@@ -448,32 +456,21 @@ class App(ttk.Window):
         )
         _gen_btn.grid(row=0, column=2, padx=4)
 
-        # Save uses tk.Button to bypass ttkbootstrap — ttk.Button with
-        # bootstyle="success" hangs inside a nested Frame in this app context
-        # due to a ttkbootstrap 1.20.2 asset-regen bug. ttkbootstrap also
-        # overrides kwargs in tk.Button __init__ via its TK_WIDGETS wrapper,
-        # so colors must be applied via .configure() after construction.
+        # Save: tk.Button teal-green fill. Fixed width centers text properly.
         _save_btn = tk.Button(
             process_frame,
             text=self.lang.get("save_output_button", "Save Output"),
             command=self.ui_save_current_project_output,
-            relief="flat",
-            borderwidth=0,
-            padx=16,
-            pady=9,
+            relief="flat", borderwidth=0, bd=0, highlightthickness=0,
+            width=8, pady=8,
             font=("Segoe UI Semibold", 10),
             cursor="hand2",
-            anchor="center",
-            justify="center",
-            compound="none",
         )
         _save_btn.configure(
             bg=self.palette["success_bg"],
             fg=self.palette["text_bright"],
             activebackground=self.palette["success_hover"],
             activeforeground=self.palette["text_bright"],
-            highlightthickness=0,
-            bd=0,
         )
         _save_btn.grid(row=0, column=3, padx=4)
 
