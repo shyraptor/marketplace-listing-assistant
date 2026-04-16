@@ -168,6 +168,7 @@ class App(ttk.Window):
         style.configure("App.TFrame", background=self.palette["surface"])
         style.configure("Panel.TFrame", background=self.palette["panel"])
         style.configure("Toolbar.TFrame", background=self.palette["card"])
+        style.configure("Card.TFrame", background=self.palette["card"])
 
         # Cards (LabelFrames) - visible border separates sections from panel
         style.configure(
@@ -181,7 +182,54 @@ class App(ttk.Window):
         )
         style.configure("Card.TLabelframe.Label", font=fonts["section"], foreground=self.palette["accent"], background=self.palette["card"])
 
-        # TEntry and TCombobox inherit inputbg/inputfg/border from style.colors.update above
+        # Entries: override the outer chrome (bg) so it doesn't render as
+        # solar's teal #002B36 around the input field.
+        style.configure(
+            "TEntry",
+            background=self.palette["card"],
+            fieldbackground=self.palette["surface"],
+            foreground=self.palette["text"],
+            bordercolor=self.palette["card_border"],
+            lightcolor=self.palette["card_border"],
+            darkcolor=self.palette["card_border"],
+            insertcolor=self.palette["accent"],
+        )
+        style.map(
+            "TEntry",
+            bordercolor=[("focus", self.palette["accent"])],
+            lightcolor=[("focus", self.palette["accent"])],
+            darkcolor=[("focus", self.palette["accent"])],
+        )
+
+        # Combobox: same treatment + cyan dropdown arrow.
+        style.configure(
+            "TCombobox",
+            background=self.palette["card"],
+            fieldbackground=self.palette["surface"],
+            foreground=self.palette["text"],
+            bordercolor=self.palette["card_border"],
+            lightcolor=self.palette["card_border"],
+            darkcolor=self.palette["card_border"],
+            arrowcolor=self.palette["accent"],
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", self.palette["surface"])],
+            foreground=[("readonly", self.palette["text"])],
+            bordercolor=[("focus", self.palette["accent"])],
+            lightcolor=[("focus", self.palette["accent"])],
+            darkcolor=[("focus", self.palette["accent"])],
+        )
+
+        # Sliders: kill solar's teal trough, use surface + cyan thumb.
+        style.configure(
+            "Horizontal.TScale",
+            background=self.palette["card"],
+            troughcolor=self.palette["surface"],
+            bordercolor=self.palette["card_border"],
+            lightcolor=self.palette["accent"],
+            darkcolor=self.palette["accent_dim"],
+        )
 
         # Notebook
         style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
@@ -207,6 +255,7 @@ class App(ttk.Window):
         self.panel_style = "Panel.TFrame"
         self.toolbar_style = "Toolbar.TFrame"
         self.card_style = "Card.TLabelframe"
+        self.card_frame_style = "Card.TFrame"
         # Bootstyle-only — style= would defeat ttkbootstrap's per-bootstyle color.
         # Padding/font come from style.configure on the bootstyle-generated names.
         self.button_styles = {
@@ -605,7 +654,7 @@ class App(ttk.Window):
         self.tag_search_var.trace('w', lambda *args: self._filter_tags_display())
         
         # Container for canvas with fixed height
-        canvas_container = ttk.Frame(tags_frame)
+        canvas_container = ttk.Frame(tags_frame, style=self.card_frame_style)
         canvas_container.grid(row=1, column=0, sticky="nsew")
         canvas_container.grid_columnconfigure(0, weight=1)
         canvas_container.grid_rowconfigure(0, weight=1)
@@ -620,7 +669,7 @@ class App(ttk.Window):
         self.tags_canvas.configure(yscrollcommand=tags_scrollbar.set)
         
         # Frame inside canvas for checkboxes
-        self.tags_check_container = ttk.Frame(self.tags_canvas)
+        self.tags_check_container = ttk.Frame(self.tags_canvas, style=self.card_frame_style)
         self.tags_check_container_id = self.tags_canvas.create_window((0, 0), window=self.tags_check_container, anchor="nw")
         
         # Bind events for proper scrolling
@@ -650,7 +699,7 @@ class App(ttk.Window):
         self.color_search_var.trace('w', lambda *args: self._filter_colors_display())
         
         # Container for canvas with fixed height
-        canvas_container = ttk.Frame(colors_frame)
+        canvas_container = ttk.Frame(colors_frame, style=self.card_frame_style)
         canvas_container.grid(row=1, column=0, sticky="nsew")
         canvas_container.grid_columnconfigure(0, weight=1)
         canvas_container.grid_rowconfigure(0, weight=1)
@@ -665,7 +714,7 @@ class App(ttk.Window):
         self.colors_canvas.configure(yscrollcommand=colors_scrollbar.set)
         
         # Frame inside canvas for checkboxes
-        self.colors_check_container = ttk.Frame(self.colors_canvas)
+        self.colors_check_container = ttk.Frame(self.colors_canvas, style=self.card_frame_style)
         self.colors_check_container_id = self.colors_canvas.create_window((0, 0), window=self.colors_check_container, anchor="nw")
         
         # Bind events for proper scrolling
@@ -852,7 +901,7 @@ class App(ttk.Window):
         ttk.Label(adj_frame, text=self.lang.get("rotation_label", "Rotation:")).grid(
             row=row, column=0, sticky="w", pady=2
         )
-        rotation_frame = ttk.Frame(adj_frame)
+        rotation_frame = ttk.Frame(adj_frame, style=self.card_frame_style)
         rotation_frame.grid(row=row, column=1, sticky="w", padx=5, pady=2)
         
         # Rotation angle display
@@ -1152,7 +1201,7 @@ class App(ttk.Window):
             
             display_name = color.replace(" color", "")
             
-            color_frame = ttk.Frame(self.colors_check_container)
+            color_frame = ttk.Frame(self.colors_check_container, style=self.card_frame_style)
             color_frame.grid(row=row_num, column=0, sticky="ew", pady=1)
             color_frame.grid_columnconfigure(0, weight=1)
             
