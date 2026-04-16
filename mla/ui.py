@@ -114,8 +114,8 @@ class App(ttk.Window):
             "btn_bg_hover": "#2a3e6b",
             "btn_bg_pressed": "#16233f",
             "success": "#66bb6a",
-            "success_bg": "#2e7d32",
-            "success_hover": "#388e3c",
+            "success_bg": "#0d9488",
+            "success_hover": "#14b8a6",
             "danger": "#ef5350",
             "danger_bg": "#3c1f22",
             "danger_hover": "#5c2a2f",
@@ -231,15 +231,32 @@ class App(ttk.Window):
             darkcolor=self.palette["accent_dim"],
         )
 
+        # Combobox layout fix: the default solar layout anchors the dropdown
+        # arrow to the bottom (sticky='s'), which looks misaligned against
+        # our themed field. Re-layout so the arrow centers vertically.
+        try:
+            style.layout("TCombobox", [
+                ("combo.Spinbox.field", {"side": "top", "sticky": "we", "children": [
+                    ("Combobox.downarrow", {"side": "right", "sticky": "ns"}),
+                    ("Combobox.padding", {"expand": "1", "sticky": "nswe", "children": [
+                        ("Combobox.textarea", {"sticky": "nswe"}),
+                    ]}),
+                ]}),
+            ])
+        except Exception:
+            pass
+
         # Notebook
         style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
         style.configure("TNotebook.Tab", font=fonts["button"], padding=[14, 7])
 
         # Padding/font applied to ttkbootstrap's bootstyle-generated style names.
         # These take effect at widget creation when the button has bootstyle=X.
+        # primary.TButton uses dark text on bright cyan (white-on-cyan is unreadable).
         # Outline variants get background=card so they blend with the toolbar
         # instead of rendering as a darker surface-colored strip.
-        style.configure("primary.TButton",         font=("Segoe UI Semibold", 10), padding=(16, 9))
+        style.configure("primary.TButton",         font=("Segoe UI Semibold", 10), padding=(16, 9),
+                        foreground=self.palette["accent_text_on"])
         style.configure("primary.Outline.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6),
                         background=self.palette["card"])
         style.configure("secondary.TButton",       font=("Segoe UI", 10),          padding=(10, 6))
@@ -248,6 +265,11 @@ class App(ttk.Window):
                         background=self.palette["card"])
         style.configure("Link.TButton",            font=("Segoe UI", 10),          padding=(8, 6),
                         background=self.palette["card"])
+
+        # Round toggle (ttkbootstrap's bootstyle="round-toggle") has bg=surface
+        # by default, which shows as a darker strip against the card-colored
+        # toolbar. Match it to card.
+        style.configure("Round.Toggle", background=self.palette["card"])
 
         # Checkbuttons: match card background so tag/color rows don't render as
         # solar-theme teal strips against our navy card. Do NOT set indicatorcolor
@@ -262,6 +284,11 @@ class App(ttk.Window):
         self.card_frame_style = "Card.TFrame"
         # Bootstyle-only — style= would defeat ttkbootstrap's per-bootstyle color.
         # Padding/font come from style.configure on the bootstyle-generated names.
+        # Filled "info" / "success" bootstyles hang in the toolbar context due
+        # to a ttkbootstrap 1.20.2 asset-regen bug; the toolbar Generate/Save
+        # buttons use tk.Button directly. Editor dialogs use these variants
+        # safely because they live in separate Toplevel windows with no
+        # preceding round-toggle to trip the bug.
         self.button_styles = {
             "cta":       {"bootstyle": "primary"},
             "primary":   {"bootstyle": "primary-outline"},
@@ -402,12 +429,24 @@ class App(ttk.Window):
             **self._button_options("cta"),
         ).grid(row=0, column=1, padx=4)
 
-        ttk.Button(
+        # Generate uses tk.Button (dimmer cyan fill) — see Save comment below.
+        _gen_btn = tk.Button(
             process_frame,
             text=self.lang.get("generate_desc_button", "Generate Description"),
             command=self.ui_generate_current_description,
-            **self._button_options("primary"),
-        ).grid(row=0, column=2, padx=4)
+            relief="flat", borderwidth=0, bd=0, highlightthickness=0,
+            padx=14, pady=8,
+            font=("Segoe UI Semibold", 10),
+            cursor="hand2",
+            anchor="center", justify="center", compound="none",
+        )
+        _gen_btn.configure(
+            bg=self.palette["accent_dim"],
+            fg=self.palette["text_bright"],
+            activebackground=self.palette["accent"],
+            activeforeground=self.palette["accent_text_on"],
+        )
+        _gen_btn.grid(row=0, column=2, padx=4)
 
         # Save uses tk.Button to bypass ttkbootstrap — ttk.Button with
         # bootstyle="success" hangs inside a nested Frame in this app context
@@ -420,10 +459,13 @@ class App(ttk.Window):
             command=self.ui_save_current_project_output,
             relief="flat",
             borderwidth=0,
-            padx=14,
-            pady=7,
+            padx=16,
+            pady=9,
             font=("Segoe UI Semibold", 10),
             cursor="hand2",
+            anchor="center",
+            justify="center",
+            compound="none",
         )
         _save_btn.configure(
             bg=self.palette["success_bg"],
@@ -431,6 +473,7 @@ class App(ttk.Window):
             activebackground=self.palette["success_hover"],
             activeforeground=self.palette["text_bright"],
             highlightthickness=0,
+            bd=0,
         )
         _save_btn.grid(row=0, column=3, padx=4)
 
@@ -743,6 +786,8 @@ class App(ttk.Window):
 
         self.img_display_frame = ttk.Frame(self.img_canvas, padding="5", style=self.panel_style)
         self.img_display_frame_id = self.img_canvas.create_window((0, 0), window=self.img_display_frame, anchor="nw")
+        # Expand column 0 so empty-state content can center horizontally.
+        self.img_display_frame.columnconfigure(0, weight=1)
         
         # Bind events
         self.img_display_frame.bind("<Configure>", lambda e: self._on_frame_configure(self.img_canvas))
@@ -781,7 +826,7 @@ class App(ttk.Window):
             length=200,
             value=initial_val,
             command=self._on_slider_change,
-            bootstyle="info",
+            bootstyle="primary",
         )
         slider.grid(row=row, column=1, sticky="ew", padx=5, pady=3)
         setattr(self, slider_attr, slider)
@@ -894,7 +939,7 @@ class App(ttk.Window):
             length=200,
             value=0.85,
             command=self._on_slider_change,
-            bootstyle="info",
+            bootstyle="primary",
         )
         self.slider_scale.grid(row=row, column=1, sticky="ew", padx=5, pady=3)
         self.label_scale = ttk.Label(adj_frame, text="0.85x")
