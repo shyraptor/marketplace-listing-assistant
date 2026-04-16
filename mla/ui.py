@@ -99,36 +99,95 @@ class App(ttk.Window):
     def _apply_theme_overrides(self):
         """Set up a cohesive visual palette and shared widget styles."""
         self.palette = {
-            "surface": "#0f172a",
-            "panel": "#151f3a",
-            "card": "#192347",
-            "text": "#f8fafc",
-            "muted": "#94a3b8",
-            "danger": "#f87171",
+            "surface": "#1a1a2e",
+            "panel": "#16213e",
+            "card": "#263a5e",
+            "card_border": "#3a517d",
+            "text": "#e8eaf0",
+            "text_bright": "#ffffff",
+            "muted": "#8b95a8",
+            "accent": "#4fc3f7",
+            "accent_dim": "#2a6f8f",
+            "danger": "#ef5350",
+            "success": "#66bb6a",
+            "separator": "#3a517d",
         }
         fonts = {
             "base": ("Segoe UI", 10),
             "section": ("Segoe UI Semibold", 11),
             "button": ("Segoe UI Semibold", 10),
+            "small": ("Segoe UI", 9),
         }
         self.configure(background=self.palette["surface"])
         style = self._style
+
+        # Base
         style.configure(".", font=fonts["base"])
         style.configure("TLabel", foreground=self.palette["text"])
+        style.configure("Bright.TLabel", foreground=self.palette["text_bright"])
         style.configure("Hint.TLabel", foreground=self.palette["muted"], background=self.palette["panel"], font=("Segoe UI", 9, "italic"))
+        style.configure("Accent.TLabel", foreground=self.palette["accent"], font=fonts["section"])
+        style.configure("EmptyTitle.TLabel", foreground=self.palette["text"], background=self.palette["panel"], font=("Segoe UI", 14))
+        style.configure("EmptyHint.TLabel", foreground=self.palette["muted"], background=self.palette["panel"], font=("Segoe UI", 10, "italic"))
+
+        # Frames
         style.configure("App.TFrame", background=self.palette["surface"])
         style.configure("Panel.TFrame", background=self.palette["panel"])
-        style.configure("Card.TLabelframe", background=self.palette["card"], foreground=self.palette["text"], padding=10)
-        style.configure("Card.TLabelframe.Label", font=fonts["section"], foreground=self.palette["muted"], background=self.palette["card"])
+        style.configure("Toolbar.TFrame", background=self.palette["card"])
+
+        # Cards (LabelFrames) - visible border separates sections from panel
+        style.configure(
+            "Card.TLabelframe",
+            background=self.palette["card"],
+            foreground=self.palette["text"],
+            bordercolor=self.palette["card_border"],
+            borderwidth=1,
+            relief="solid",
+            padding=8,
+        )
+        style.configure("Card.TLabelframe.Label", font=fonts["section"], foreground=self.palette["accent"], background=self.palette["card"])
+
+        # Entries
+        style.configure(
+            "TEntry",
+            fieldbackground=self.palette["surface"],
+            foreground=self.palette["text"],
+            bordercolor=self.palette["card_border"],
+            lightcolor=self.palette["card_border"],
+            darkcolor=self.palette["card_border"],
+            insertcolor=self.palette["accent"],
+        )
+        style.map("TEntry", bordercolor=[("focus", self.palette["accent"])])
+
+        # Combobox
+        style.configure(
+            "TCombobox",
+            fieldbackground=self.palette["surface"],
+            foreground=self.palette["text"],
+            bordercolor=self.palette["card_border"],
+            arrowcolor=self.palette["accent"],
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", self.palette["surface"])],
+            foreground=[("readonly", self.palette["text"])],
+            bordercolor=[("focus", self.palette["accent"])],
+        )
+
+        # Notebook
         style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
-        style.configure("TNotebook.Tab", font=fonts["button"], padding=[10, 6])
+        style.configure("TNotebook.Tab", font=fonts["button"], padding=[14, 7])
+
+        # Buttons
         style.configure("AppPrimary.TButton", font=fonts["button"], padding=8)
         style.configure("AppSecondary.TButton", font=fonts["button"], padding=6)
         style.configure("AppLink.TButton", font=fonts["button"], padding=4)
         style.configure("AppDanger.TButton", font=fonts["button"], padding=6)
         style.map("AppDanger.TButton", foreground=[("!disabled", self.palette["danger"])])
+
         self.frame_style = "App.TFrame"
         self.panel_style = "Panel.TFrame"
+        self.toolbar_style = "Toolbar.TFrame"
         self.card_style = "Card.TLabelframe"
         self.button_styles = {
             "primary": {"style": "AppPrimary.TButton", "bootstyle": "primary"},
@@ -173,18 +232,19 @@ class App(ttk.Window):
 
     def _create_top_toolbar(self):
         """Create the top toolbar with action buttons."""
-        top_frame = ttk.Frame(self, padding="5 5 5 5", style=self.panel_style)
+        top_frame = ttk.Frame(self, padding="6 6 6 6", style=self.toolbar_style)
         top_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
-        
+
         # Configure columns for top_frame
         top_frame.columnconfigure(0, weight=0)  # Project navigation
-        top_frame.columnconfigure(1, weight=1)  # Spacer
-        top_frame.columnconfigure(2, weight=1)  # File operations
-        top_frame.columnconfigure(3, weight=1)  # Processing
-        top_frame.columnconfigure(4, weight=0)  # Settings
-        
+        top_frame.columnconfigure(1, weight=0)  # Separator
+        top_frame.columnconfigure(2, weight=0)  # File operations
+        top_frame.columnconfigure(3, weight=0)  # Separator
+        top_frame.columnconfigure(4, weight=1)  # Processing
+        top_frame.columnconfigure(5, weight=0)  # Settings
+
         # Project Navigation (Left)
-        nav_frame = ttk.Frame(top_frame, style=self.panel_style)
+        nav_frame = ttk.Frame(top_frame, style=self.toolbar_style)
         nav_frame.grid(row=0, column=0, sticky="w")
         
         ttk.Button(
@@ -204,7 +264,7 @@ class App(ttk.Window):
         self.btn_prev_project.grid(row=0, column=1, padx=2)
         
         self.project_label_var = tk.StringVar()
-        ttk.Label(nav_frame, textvariable=self.project_label_var, anchor="center", width=18, style="TLabel").grid(row=0, column=2, padx=6)
+        ttk.Label(nav_frame, textvariable=self.project_label_var, anchor="center", width=18, style="Accent.TLabel").grid(row=0, column=2, padx=6)
         
         self.btn_next_project = ttk.Button(
             nav_frame,
@@ -222,28 +282,36 @@ class App(ttk.Window):
             **self._button_options("danger"),
         ).grid(row=0, column=4, padx=4)
         
-        # File Operations (Middle-Left)
-        file_ops_frame = ttk.Frame(top_frame, style=self.panel_style)
+        # Separator
+        tk.Frame(top_frame, bg=self.palette["separator"], width=2).grid(
+            row=0, column=1, sticky="ns", padx=8, pady=4)
+
+        # File Operations
+        file_ops_frame = ttk.Frame(top_frame, style=self.toolbar_style)
         file_ops_frame.grid(row=0, column=2, sticky="w")
-        
+
         ttk.Button(
             file_ops_frame,
             text=self.lang.get("add_images_button", "Add Images"),
             command=self.ui_load_single_project_images,
             **self._button_options("secondary"),
         ).grid(row=0, column=0, padx=4)
-        
+
         ttk.Button(
             file_ops_frame,
             text=self.lang.get("load_zip_button", "Load Zip"),
             command=self.ui_load_projects_zip,
             **self._button_options("secondary"),
         ).grid(row=0, column=1, padx=4)
-        
-        # Processing/Generate/Save (Middle-Right)
-        process_frame = ttk.Frame(top_frame, style=self.panel_style)
-        process_frame.grid(row=0, column=3, sticky="we")
-        
+
+        # Separator
+        tk.Frame(top_frame, bg=self.palette["separator"], width=2).grid(
+            row=0, column=3, sticky="ns", padx=8, pady=4)
+
+        # Processing/Generate/Save
+        process_frame = ttk.Frame(top_frame, style=self.toolbar_style)
+        process_frame.grid(row=0, column=4, sticky="we")
+
         self.global_use_solid_bg_var = tk.BooleanVar(value=self.backend.use_solid_bg)
         ttk.Checkbutton(
             process_frame,
@@ -252,35 +320,35 @@ class App(ttk.Window):
             command=self._on_global_use_solid_bg_change,
             bootstyle="round-toggle",
         ).grid(row=0, column=0, padx=(0, 10))
-        
+
         ttk.Button(
-            process_frame, 
-            text=self.lang.get("process_images_button", "Process"), 
+            process_frame,
+            text=self.lang.get("process_images_button", "Process"),
             command=self.ui_process_current_project_images,
             **self._button_options("primary"),
         ).grid(row=0, column=1, padx=4)
-        
+
         ttk.Button(
-            process_frame, 
-            text=self.lang.get("generate_desc_button", "Generate Description"), 
+            process_frame,
+            text=self.lang.get("generate_desc_button", "Generate Description"),
             command=self.ui_generate_current_description,
             **self._button_options("secondary"),
         ).grid(row=0, column=2, padx=4)
-        
+
         ttk.Button(
             process_frame,
             text=self.lang.get("save_output_button", "Save Output"),
             command=self.ui_save_current_project_output,
             **self._button_options("success"),
         ).grid(row=0, column=3, padx=4)
-        
+
         # Settings (Far Right)
         ttk.Button(
-            top_frame, 
-            text=self.lang.get("open_editor_button", "Settings"), 
+            top_frame,
+            text=self.lang.get("open_editor_button", "Settings"),
             command=self.open_editor_window,
             **self._button_options("link"),
-        ).grid(row=0, column=4, sticky="e", padx=(10, 0))
+        ).grid(row=0, column=5, sticky="e", padx=(10, 0))
 
     def _create_left_panel(self, parent):
         """Create the left control panel with form fields."""
@@ -464,16 +532,19 @@ class App(ttk.Window):
             style=self.card_style,
         )
         storage_frame.grid(row=row_index, column=0, sticky="ew", pady=(0, 3))
-        storage_frame.grid_columnconfigure(1, weight=0)
-        
-        ttk.Label(storage_frame, text=self.lang.get("owner_letter", "Owner Initial:")).grid(row=0, column=0, sticky="w", padx=(0, 5))
-        self.owner_entry = ttk.Entry(storage_frame, width=10)
-        self.owner_entry.grid(row=0, column=1, sticky="w", pady=2)
+        storage_frame.grid_columnconfigure(1, weight=1)
+        storage_frame.grid_columnconfigure(3, weight=1)
+
+        ttk.Label(storage_frame, text=self.lang.get("owner_letter", "Owner Initial:")).grid(
+            row=0, column=0, sticky="w", padx=(0, 5))
+        self.owner_entry = ttk.Entry(storage_frame, width=6)
+        self.owner_entry.grid(row=0, column=1, sticky="w", padx=(0, 12), pady=2)
         self.owner_entry.bind("<KeyRelease>", lambda e: self._save_current_form_to_backend())
-        
-        ttk.Label(storage_frame, text=self.lang.get("storage_letter", "Storage Code:")).grid(row=1, column=0, sticky="w", padx=(0, 5))
-        self.storage_entry = ttk.Entry(storage_frame, width=10)
-        self.storage_entry.grid(row=1, column=1, sticky="w", pady=2)
+
+        ttk.Label(storage_frame, text=self.lang.get("storage_letter", "Storage Code:")).grid(
+            row=0, column=2, sticky="w", padx=(0, 5))
+        self.storage_entry = ttk.Entry(storage_frame, width=6)
+        self.storage_entry.grid(row=0, column=3, sticky="w", pady=2)
         self.storage_entry.bind("<KeyRelease>", lambda e: self._save_current_form_to_backend())
 
     def _create_tags_section(self, parent, row_idx):
@@ -572,13 +643,13 @@ class App(ttk.Window):
         parent.grid_rowconfigure(0, weight=1)
         parent.grid_columnconfigure(0, weight=1)
         
-        self.img_canvas = tk.Canvas(parent, borderwidth=0, highlightthickness=0)
+        self.img_canvas = tk.Canvas(parent, borderwidth=0, highlightthickness=0, bg=self.palette["panel"])
         img_scrollbar = ttk.Scrollbar(parent, orient="vertical", command=self.img_canvas.yview)
         self.img_canvas.configure(yscrollcommand=img_scrollbar.set)
         self.img_canvas.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
         img_scrollbar.grid(row=0, column=1, sticky="ns", pady=(0, 5))
-        
-        self.img_display_frame = ttk.Frame(self.img_canvas, padding="5")
+
+        self.img_display_frame = ttk.Frame(self.img_canvas, padding="5", style=self.panel_style)
         self.img_display_frame_id = self.img_canvas.create_window((0, 0), window=self.img_display_frame, anchor="nw")
         
         # Bind events
@@ -609,7 +680,7 @@ class App(ttk.Window):
             int: Next row number
         """
         ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w", pady=1)
-        
+
         slider = ttk.Scale(
             parent,
             from_=from_val,
@@ -617,9 +688,10 @@ class App(ttk.Window):
             orient="horizontal",
             length=200,
             value=initial_val,
-            command=self._on_slider_change
+            command=self._on_slider_change,
+            bootstyle="info",
         )
-        slider.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
+        slider.grid(row=row, column=1, sticky="ew", padx=5, pady=3)
         setattr(self, slider_attr, slider)
 
         # Apply changes when the interaction finishes
@@ -723,15 +795,16 @@ class App(ttk.Window):
             row=row, column=0, sticky="w", pady=1
         )
         self.slider_scale = ttk.Scale(
-            adj_frame, 
-            from_=0.5, 
-            to=2.0, 
+            adj_frame,
+            from_=0.5,
+            to=2.0,
             orient="horizontal",
             length=200,
             value=0.85,
-            command=self._on_slider_change
+            command=self._on_slider_change,
+            bootstyle="info",
         )
-        self.slider_scale.grid(row=row, column=1, sticky="ew", padx=5, pady=1)
+        self.slider_scale.grid(row=row, column=1, sticky="ew", padx=5, pady=3)
         self.label_scale = ttk.Label(adj_frame, text="0.85x")
         self.label_scale.grid(row=row, column=2, sticky="w", padx=5, pady=1)
         row += 1
@@ -745,7 +818,13 @@ class App(ttk.Window):
         
         # Rotation angle display
         self.rotation_angle_var = tk.StringVar(value="0 deg")
-        self.rotation_label = ttk.Label(rotation_frame, textvariable=self.rotation_angle_var, width=5)
+        self.rotation_label = ttk.Label(
+            rotation_frame,
+            textvariable=self.rotation_angle_var,
+            width=7,
+            font=("Segoe UI Semibold", 10),
+            foreground=self.palette["accent"],
+        )
         self.rotation_label.grid(row=0, column=0, padx=(0, 10))
         
         # Rotation buttons
@@ -1048,9 +1127,9 @@ class App(ttk.Window):
             self.color_checkbuttons[color] = c
             
             preview_color = self._get_color_from_name(display_name)
-            color_swatch = tk.Canvas(color_frame, width=15, height=15, bd=1, relief="solid")
+            color_swatch = tk.Canvas(color_frame, width=20, height=20, bd=0, highlightthickness=1, highlightbackground="#444")
             color_swatch.configure(bg=preview_color)
-            color_swatch.grid(row=0, column=1, padx=(3, 0), pady=0, sticky="e")
+            color_swatch.grid(row=0, column=1, padx=(6, 2), pady=1, sticky="e")
             
             row_num += 1
             
@@ -1421,9 +1500,16 @@ class App(ttk.Window):
             for child in self.img_display_frame.winfo_children():
                 child.destroy()
             
-            msg = (self.lang.get("no_project", "No project loaded or selected.") if not proj else 
+            msg = (self.lang.get("no_project", "No project loaded or selected.") if not proj else
                    self.lang.get("no_images_in_project", "No clothing images loaded for this project."))
-            ttk.Label(self.img_display_frame, text=msg).grid()
+            hint = self.lang.get(
+                "empty_hint",
+                "Use “+ Images” or “Zip” in the toolbar to get started.",
+            )
+            empty_wrap = ttk.Frame(self.img_display_frame, style=self.panel_style)
+            empty_wrap.grid(row=0, column=0, padx=40, pady=80, sticky="n")
+            ttk.Label(empty_wrap, text=msg, style="EmptyTitle.TLabel").pack(pady=(0, 6))
+            ttk.Label(empty_wrap, text=hint, style="EmptyHint.TLabel").pack()
             self.selected_processed_index = None
         elif self.selected_processed_index is not None and self.selected_processed_index >= len(proj.processed_images):
             self.selected_processed_index = None
