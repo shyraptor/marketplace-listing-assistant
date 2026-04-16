@@ -131,6 +131,27 @@ class App(ttk.Window):
         self.configure(background=self.palette["surface"])
         style = self._style
 
+        # Replace ttkbootstrap's named palette so every bootstyled widget
+        # (buttons, entries, sliders, round-toggle, combobox) inherits our
+        # navy+cyan colors instead of solar theme's beige+teal+orange.
+        c = style.colors
+        c.primary = self.palette["accent"]
+        c.secondary = self.palette["btn_bg"]
+        c.info = self.palette["accent"]
+        c.success = self.palette["success_bg"]
+        c.danger = self.palette["danger_fg"]
+        c.warning = "#f0a020"
+        c.light = self.palette["text"]
+        c.dark = self.palette["surface"]
+        c.bg = self.palette["surface"]
+        c.fg = self.palette["text"]
+        c.selectbg = self.palette["accent_dim"]
+        c.selectfg = self.palette["text_bright"]
+        c.border = self.palette["card_border"]
+        c.inputbg = self.palette["surface"]
+        c.inputfg = self.palette["text"]
+        c.active = self.palette["btn_bg_hover"]
+
         # Base
         style.configure(".", font=fonts["base"])
         style.configure("TLabel", foreground=self.palette["text"])
@@ -157,63 +178,41 @@ class App(ttk.Window):
         )
         style.configure("Card.TLabelframe.Label", font=fonts["section"], foreground=self.palette["accent"], background=self.palette["card"])
 
-        # Entries
-        style.configure(
-            "TEntry",
-            fieldbackground=self.palette["surface"],
-            foreground=self.palette["text"],
-            bordercolor=self.palette["card_border"],
-            lightcolor=self.palette["card_border"],
-            darkcolor=self.palette["card_border"],
-            insertcolor=self.palette["accent"],
-        )
-        style.map("TEntry", bordercolor=[("focus", self.palette["accent"])])
-
-        # Combobox
-        style.configure(
-            "TCombobox",
-            fieldbackground=self.palette["surface"],
-            foreground=self.palette["text"],
-            bordercolor=self.palette["card_border"],
-            arrowcolor=self.palette["accent"],
-        )
-        style.map(
-            "TCombobox",
-            fieldbackground=[("readonly", self.palette["surface"])],
-            foreground=[("readonly", self.palette["text"])],
-            bordercolor=[("focus", self.palette["accent"])],
-        )
+        # TEntry and TCombobox inherit inputbg/inputfg/border from style.colors.update above
 
         # Notebook
         style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
         style.configure("TNotebook.Tab", font=fonts["button"], padding=[14, 7])
 
-        # Buttons: font + padding only (color overrides interact badly with ttkbootstrap asset gen)
-        style.configure("AppCTA.TButton", font=("Segoe UI Semibold", 10), padding=(14, 8))
+        # Custom padding/font only. ttkbootstrap 1.20.2 locks up during
+        # widget creation if a TButton style has background/bordercolor set
+        # OR if the style name contains a color keyword ("primary",
+        # "success", etc.) while being configured in this init flow.
+        # Net effect: buttons render in the palette's `primary` color (cyan
+        # from our override) regardless of bootstyle variant. Hierarchy is
+        # conveyed through padding/font weight.
+        style.configure("AppCTA.TButton",     font=("Segoe UI Semibold", 10), padding=(14, 8))
         style.configure("AppProceed.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
-        style.configure("AppSubtle.TButton", font=("Segoe UI", 10), padding=(10, 6))
-        style.configure("AppGo.TButton", font=("Segoe UI Semibold", 10), padding=(12, 7))
-        style.configure("AppRemove.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
-        style.configure("AppLink.TButton", font=("Segoe UI", 10), padding=(8, 6))
+        style.configure("AppSubtle.TButton",  font=("Segoe UI", 10),          padding=(10, 6))
+        style.configure("AppGo.TButton",      font=("Segoe UI Semibold", 10), padding=(12, 7))
+        style.configure("AppRemove.TButton",  font=("Segoe UI Semibold", 10), padding=(10, 6))
+        style.configure("AppLink.TButton",    font=("Segoe UI", 10),          padding=(8, 6))
 
         self.frame_style = "App.TFrame"
         self.panel_style = "Panel.TFrame"
         self.toolbar_style = "Toolbar.TFrame"
         self.card_style = "Card.TLabelframe"
-        # Use bootstyle for colors (bootstyle + style.configure for color hangs ttkbootstrap).
-        # Colors from solar theme: info=cyan (closest to our accent), success=green,
-        # danger=red, secondary=gray. Outline variants dim the background for secondary use.
         self.button_styles = {
-            "cta":       {"style": "AppCTA.TButton",     "bootstyle": "info"},
-            "primary":   {"style": "AppProceed.TButton", "bootstyle": "info-outline"},
-            "secondary": {"style": "AppSubtle.TButton",  "bootstyle": "secondary-outline"},
+            "cta":       {"style": "AppCTA.TButton",     "bootstyle": "primary"},
+            "primary":   {"style": "AppProceed.TButton", "bootstyle": "primary-outline"},
+            "secondary": {"style": "AppSubtle.TButton",  "bootstyle": "secondary"},
             "success":   {"style": "AppGo.TButton",      "bootstyle": "success"},
             "danger":    {"style": "AppRemove.TButton",  "bootstyle": "danger-outline"},
             "link":      {"style": "AppLink.TButton",    "bootstyle": "link"},
         }
 
     def _button_options(self, variant: str = "secondary") -> dict:
-        """Return shared style options for ttk Buttons."""
+        """Return shared style+bootstyle options for ttk Buttons."""
         cfg = self.button_styles.get(variant, self.button_styles["secondary"])
         return {"style": cfg["style"], "bootstyle": cfg["bootstyle"]}
 
