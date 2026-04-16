@@ -270,10 +270,13 @@ class App(ttk.Window):
         style.configure("Link.TButton",            font=("Segoe UI", 10),          padding=(8, 6),
                         background=self.palette["card"])
 
-        # Round toggle (ttkbootstrap's bootstyle="round-toggle") has bg=surface
-        # by default, which shows as a darker strip against the card-colored
-        # toolbar. Match it to card.
-        style.configure("Round.Toggle", background=self.palette["card"])
+        # Round toggle bg defaults to surface, showing as a darker strip
+        # against the card-colored toolbar. ttkbootstrap names the style
+        # based on its bootstyle color prefix — configure all the variants
+        # we might end up using.
+        for rt in ("Round.Toggle", "primary.Round.Toggle", "info.Round.Toggle",
+                   "success.Round.Toggle"):
+            style.configure(rt, background=self.palette["card"])
 
         # Checkbuttons: match card background so tag/color rows don't render as
         # solar-theme teal strips against our navy card. Do NOT set indicatorcolor
@@ -437,42 +440,19 @@ class App(ttk.Window):
             **self._button_options("cta"),
         ).grid(row=0, column=1, padx=4)
 
-        # Generate: tk.Button with dimmer cyan fill. Fixed width="14" so
-        # emoji trailing metrics don't throw off the centered text.
-        _gen_btn = tk.Button(
+        ttk.Button(
             process_frame,
-            text=self.lang.get("generate_desc_button", "Generate Description"),
+            text=self.lang.get("generate_desc_button", "Generate"),
             command=self.ui_generate_current_description,
-            relief="flat", borderwidth=0, bd=0, highlightthickness=0,
-            width=16, pady=7,
-            font=("Segoe UI Semibold", 10),
-            cursor="hand2",
-        )
-        _gen_btn.configure(
-            bg=self.palette["accent_dim"],
-            fg=self.palette["text_bright"],
-            activebackground=self.palette["accent"],
-            activeforeground=self.palette["accent_text_on"],
-        )
-        _gen_btn.grid(row=0, column=2, padx=4)
+            **self._button_options("primary"),
+        ).grid(row=0, column=2, padx=4)
 
-        # Save: tk.Button teal-green fill. Fixed width centers text properly.
-        _save_btn = tk.Button(
+        ttk.Button(
             process_frame,
-            text=self.lang.get("save_output_button", "Save Output"),
+            text=self.lang.get("save_output_button", "Save"),
             command=self.ui_save_current_project_output,
-            relief="flat", borderwidth=0, bd=0, highlightthickness=0,
-            width=8, pady=8,
-            font=("Segoe UI Semibold", 10),
-            cursor="hand2",
-        )
-        _save_btn.configure(
-            bg=self.palette["success_bg"],
-            fg=self.palette["text_bright"],
-            activebackground=self.palette["success_hover"],
-            activeforeground=self.palette["text_bright"],
-        )
-        _save_btn.grid(row=0, column=3, padx=4)
+            **self._button_options("success"),
+        ).grid(row=0, column=3, padx=4)
 
         # Settings (Far Right)
         ttk.Button(
