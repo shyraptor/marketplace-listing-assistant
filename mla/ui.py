@@ -154,7 +154,10 @@ class App(ttk.Window):
 
         # Base
         style.configure(".", font=fonts["base"])
-        style.configure("TLabel", foreground=self.palette["text"])
+        # Default TLabel sits on card-colored backgrounds (most labels live
+        # inside Card.TLabelframe or on the toolbar which is card-colored).
+        # Labels on panel/surface use explicit styles (Hint.TLabel, EmptyTitle.TLabel, etc).
+        style.configure("TLabel", foreground=self.palette["text"], background=self.palette["card"])
         style.configure("Bright.TLabel", foreground=self.palette["text_bright"])
         style.configure("Hint.TLabel", foreground=self.palette["muted"], background=self.palette["panel"], font=("Segoe UI", 9, "italic"))
         style.configure("Accent.TLabel", foreground=self.palette["accent"], font=fonts["section"])
@@ -184,37 +187,41 @@ class App(ttk.Window):
         style.configure("TNotebook", background=self.palette["surface"], borderwidth=0)
         style.configure("TNotebook.Tab", font=fonts["button"], padding=[14, 7])
 
-        # Custom padding/font only. ttkbootstrap 1.20.2 locks up during
-        # widget creation if a TButton style has background/bordercolor set
-        # OR if the style name contains a color keyword ("primary",
-        # "success", etc.) while being configured in this init flow.
-        # Net effect: buttons render in the palette's `primary` color (cyan
-        # from our override) regardless of bootstyle variant. Hierarchy is
-        # conveyed through padding/font weight.
-        style.configure("AppCTA.TButton",     font=("Segoe UI Semibold", 10), padding=(14, 8))
-        style.configure("AppProceed.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
-        style.configure("AppSubtle.TButton",  font=("Segoe UI", 10),          padding=(10, 6))
-        style.configure("AppGo.TButton",      font=("Segoe UI Semibold", 10), padding=(12, 7))
-        style.configure("AppRemove.TButton",  font=("Segoe UI Semibold", 10), padding=(10, 6))
-        style.configure("AppLink.TButton",    font=("Segoe UI", 10),          padding=(8, 6))
+        # Padding/font applied to ttkbootstrap's bootstyle-generated style names.
+        # These take effect at widget creation when the button has bootstyle=X.
+        style.configure("primary.TButton",         font=("Segoe UI Semibold", 10), padding=(14, 8))
+        style.configure("primary.Outline.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
+        style.configure("secondary.TButton",       font=("Segoe UI", 10),          padding=(10, 6))
+        style.configure("success.TButton",         font=("Segoe UI Semibold", 10), padding=(12, 7))
+        style.configure("danger.Outline.TButton",  font=("Segoe UI Semibold", 10), padding=(10, 6))
+        style.configure("Link.TButton",            font=("Segoe UI", 10),          padding=(8, 6),
+                        background=self.palette["card"])
+
+        # Checkbuttons: match card background so tag/color rows don't render as
+        # solar-theme teal strips against our navy card. Do NOT set indicatorcolor
+        # map here — that triggers the ttkbootstrap asset-gen hang.
+        style.configure("TCheckbutton", background=self.palette["card"],
+                        foreground=self.palette["text"])
 
         self.frame_style = "App.TFrame"
         self.panel_style = "Panel.TFrame"
         self.toolbar_style = "Toolbar.TFrame"
         self.card_style = "Card.TLabelframe"
+        # Bootstyle-only — style= would defeat ttkbootstrap's per-bootstyle color.
+        # Padding/font come from style.configure on the bootstyle-generated names.
         self.button_styles = {
-            "cta":       {"style": "AppCTA.TButton",     "bootstyle": "primary"},
-            "primary":   {"style": "AppProceed.TButton", "bootstyle": "primary-outline"},
-            "secondary": {"style": "AppSubtle.TButton",  "bootstyle": "secondary"},
-            "success":   {"style": "AppGo.TButton",      "bootstyle": "success"},
-            "danger":    {"style": "AppRemove.TButton",  "bootstyle": "danger-outline"},
-            "link":      {"style": "AppLink.TButton",    "bootstyle": "link"},
+            "cta":       {"bootstyle": "primary"},
+            "primary":   {"bootstyle": "primary-outline"},
+            "secondary": {"bootstyle": "secondary"},
+            "success":   {"bootstyle": "success"},
+            "danger":    {"bootstyle": "danger-outline"},
+            "link":      {"bootstyle": "link"},
         }
 
     def _button_options(self, variant: str = "secondary") -> dict:
-        """Return shared style+bootstyle options for ttk Buttons."""
+        """Return bootstyle options for ttk Buttons."""
         cfg = self.button_styles.get(variant, self.button_styles["secondary"])
-        return {"style": cfg["style"], "bootstyle": cfg["bootstyle"]}
+        return {"bootstyle": cfg["bootstyle"]}
 
     # ====================== WINDOW LIFECYCLE ======================
     def _on_app_close(self):
@@ -322,7 +329,7 @@ class App(ttk.Window):
         tk.Frame(top_frame, bg=self.palette["separator"], width=2).grid(
             row=0, column=3, sticky="ns", padx=8, pady=4)
 
-        # Processing/Generate/Save
+        # Processing/Generate/Save row.
         process_frame = ttk.Frame(top_frame, style=self.toolbar_style)
         process_frame.grid(row=0, column=4, sticky="we")
 
@@ -349,12 +356,30 @@ class App(ttk.Window):
             **self._button_options("primary"),
         ).grid(row=0, column=2, padx=4)
 
-        ttk.Button(
+        # Save uses tk.Button to bypass ttkbootstrap — ttk.Button with
+        # bootstyle="success" hangs inside a nested Frame in this app context
+        # due to a ttkbootstrap 1.20.2 asset-regen bug. ttkbootstrap also
+        # overrides kwargs in tk.Button __init__ via its TK_WIDGETS wrapper,
+        # so colors must be applied via .configure() after construction.
+        _save_btn = tk.Button(
             process_frame,
             text=self.lang.get("save_output_button", "Save Output"),
             command=self.ui_save_current_project_output,
-            **self._button_options("success"),
-        ).grid(row=0, column=3, padx=4)
+            relief="flat",
+            borderwidth=0,
+            padx=14,
+            pady=7,
+            font=("Segoe UI Semibold", 10),
+            cursor="hand2",
+        )
+        _save_btn.configure(
+            bg=self.palette["success_bg"],
+            fg=self.palette["text_bright"],
+            activebackground=self.palette["success_hover"],
+            activeforeground=self.palette["text_bright"],
+            highlightthickness=0,
+        )
+        _save_btn.grid(row=0, column=3, padx=4)
 
         # Settings (Far Right)
         ttk.Button(
