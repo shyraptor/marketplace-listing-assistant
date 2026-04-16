@@ -107,18 +107,11 @@ class App(ttk.Window):
             "text_bright": "#ffffff",
             "muted": "#8b95a8",
             "accent": "#4fc3f7",
-            "accent_bright": "#6dd0ff",
             "accent_dim": "#2a6f8f",
             "accent_text_on": "#0b1a2e",
             "btn_bg": "#1f2f52",
             "btn_bg_hover": "#2a3e6b",
-            "btn_bg_pressed": "#16233f",
-            "success": "#66bb6a",
             "success_bg": "#0d9488",
-            "success_hover": "#14b8a6",
-            "danger": "#ef5350",
-            "danger_bg": "#3c1f22",
-            "danger_hover": "#5c2a2f",
             "danger_fg": "#ef5350",
             "separator": "#5a7bad",
         }
@@ -126,7 +119,6 @@ class App(ttk.Window):
             "base": ("Segoe UI", 10),
             "section": ("Segoe UI Semibold", 11),
             "button": ("Segoe UI Semibold", 10),
-            "small": ("Segoe UI", 9),
         }
         self.configure(background=self.palette["surface"])
         style = self._style
@@ -289,14 +281,11 @@ class App(ttk.Window):
         self.toolbar_style = "Toolbar.TFrame"
         self.card_style = "Card.TLabelframe"
         self.card_frame_style = "Card.TFrame"
-        # Bootstyle-only — style= would defeat ttkbootstrap's per-bootstyle color.
-        # Padding/font come from style.configure on the bootstyle-generated names.
-        # "primary" variant uses bootstyle="info" (info=accent_dim, a muted
-        # cyan) to give Generate a filled intermediate between the bright
-        # CTAs and secondary buttons. The round-toggle uses primary color
-        # (not success) so its asset generation doesn't taint the success
-        # cache — that's what lets us use bootstyle="success" for Save
-        # without hitting the ttkbootstrap 1.20.2 asset-regen hang.
+        # Variant -> bootstyle mapping. Bootstyle only (no style=) so
+        # ttkbootstrap applies per-variant colors. Padding/font come from
+        # style.configure on the bootstyle-generated TButton names above.
+        # "primary" maps to bootstyle="info" so Generate gets a dim cyan
+        # fill (info=accent_dim) distinct from the bright-cyan CTAs.
         self.button_styles = {
             "cta":       {"bootstyle": "primary"},
             "primary":   {"bootstyle": "info"},
@@ -417,10 +406,7 @@ class App(ttk.Window):
         tk.Frame(top_frame, bg=self.palette["separator"], width=2).grid(
             row=0, column=3, sticky="ns", padx=8, pady=4)
 
-        # Processing/Generate/Save row. Generate and Save use tk.Button
-        # (not ttk.Button) because ttk.Button with bootstyle="info" or
-        # "success" hangs ttkbootstrap 1.20.2's asset regenerator in this
-        # nested-toolbar init flow (verified bug).
+        # Processing/Generate/Save row.
         process_frame = ttk.Frame(top_frame, style=self.toolbar_style)
         process_frame.grid(row=0, column=4, sticky="we")
 
@@ -1618,7 +1604,7 @@ class App(ttk.Window):
                    self.lang.get("no_images_in_project", "No clothing images loaded for this project."))
             hint = self.lang.get(
                 "empty_hint",
-                "Use “+ Images” or “Zip” in the toolbar to get started.",
+                "Use \"Images\" or \"Zip\" in the toolbar to get started.",
             )
             empty_wrap = ttk.Frame(self.img_display_frame, style=self.panel_style)
             empty_wrap.grid(row=0, column=0, padx=40, pady=120, sticky="n")
