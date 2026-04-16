@@ -78,8 +78,8 @@
   },
   "Jacket": {
     "fields": [
-      "length",
-      "width"
+      "Length",
+      "Width"
     ],
     "default_tags": [
       "base",

@@ -210,6 +210,10 @@ class Backend:
         try:
             self.temp_extract_dir = tempfile.mkdtemp()
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                for member in zip_ref.namelist():
+                    member_path = os.path.normpath(os.path.join(self.temp_extract_dir, member))
+                    if not member_path.startswith(os.path.normpath(self.temp_extract_dir) + os.sep) and member_path != os.path.normpath(self.temp_extract_dir):
+                        raise ValueError(f"Zip contains unsafe path: {member}")
                 zip_ref.extractall(self.temp_extract_dir)
 
             root_items = os.listdir(self.temp_extract_dir)
@@ -494,6 +498,9 @@ class Backend:
             ]:
                 if key in adjustments:
                     processed[key] = adjustments[key]
+
+            if adjustments.get("force_reprocess"):
+                processed["no_bg"] = None
 
             no_bg = processed.get("no_bg")
             if not no_bg:

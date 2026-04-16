@@ -1,6 +1,7 @@
 """Image processing helpers for the backend."""
 from __future__ import annotations
 
+import colorsys
 import hashlib
 import math
 import threading
@@ -34,6 +35,7 @@ class ImageProcessor:
 
         self._dominant_color_cache: Dict[Tuple[str, Tuple[int, int], bool], Tuple[int, int, int]] = {}
         self._thumbnail_cache: Dict[Tuple[str, Tuple[int, int]], Image.Image] = {}
+        self._bg_color_cache: Dict[str, Tuple[int, int, int]] = {}
         self._cache_lock = threading.Lock()
 
     # ------------------------------------------------------------------
@@ -102,7 +104,8 @@ class ImageProcessor:
     def compute_dominant_color(self, image: Image.Image, ignore_transparent: bool = True) -> Tuple[int, int, int]:
         """Compute and cache the dominant colour for an image."""
         try:
-            img_hash = hashlib.md5(image.tobytes()).hexdigest()
+            small_for_hash = image.resize((16, 16), Image.Resampling.NEAREST)
+            img_hash = hashlib.md5(small_for_hash.tobytes()).hexdigest()
             cache_key = (img_hash, image.size, ignore_transparent)
 
             with self._cache_lock:
@@ -144,62 +147,11 @@ class ImageProcessor:
         return math.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
 
     def _complementary_color(self, color: Tuple[int, int, int]) -> Tuple[int, int, int]:
-        r, g, b = color
-        max_c = max(r, g, b)
-        min_c = min(r, g, b)
-        diff = max_c - min_c
-
-        if diff == 0:
-            base = 255 - max_c
-            return (base, base, base)
-
-        # Normalised hue shift
-        hue_shift = 180 / 360
-        rf = r / 255.0
-        gf = g / 255.0
-        bf = b / 255.0
-
-        maxf = max(rf, gf, bf)
-        minf = min(rf, gf, bf)
-        diff_f = maxf - minf
-
-        if diff_f == 0:
-            hue = 0
-        elif maxf == rf:
-            hue = ((gf - bf) / diff_f) % 6
-        elif maxf == gf:
-            hue = (bf - rf) / diff_f + 2
-        else:
-            hue = (rf - gf) / diff_f + 4
-
-        hue = (hue / 6.0 + hue_shift) % 1.0
-
-        # Convert HSV back to RGB (keeping saturation/value from original)
-        value = maxf
-        saturation = 0 if maxf == 0 else diff_f / maxf
-
-        def hsv_to_rgb(h: float, s: float, v: float) -> Tuple[int, int, int]:
-            i = int(h * 6)
-            f = h * 6 - i
-            p = v * (1 - s)
-            q = v * (1 - f * s)
-            t = v * (1 - (1 - f) * s)
-            i = i % 6
-            if i == 0:
-                r_, g_, b_ = v, t, p
-            elif i == 1:
-                r_, g_, b_ = q, v, p
-            elif i == 2:
-                r_, g_, b_ = p, v, t
-            elif i == 3:
-                r_, g_, b_ = p, q, v
-            elif i == 4:
-                r_, g_, b_ = t, p, v
-            else:
-                r_, g_, b_ = v, p, q
-            return int(r_ * 255), int(g_ * 255), int(b_ * 255)
-
-        return hsv_to_rgb(hue, saturation, value)
+        r, g, b = [c / 255.0 for c in color]
+        h, s, v = colorsys.rgb_to_hsv(r, g, b)
+        h = (h + 0.5) % 1.0
+        r2, g2, b2 = colorsys.hsv_to_rgb(h, s, v)
+        return int(r2 * 255), int(g2 * 255), int(b2 * 255)
 
     # ------------------------------------------------------------------
     # Background selection helpers
@@ -213,13 +165,15 @@ class ImageProcessor:
         target_color = self._complementary_color(clothing_color)
         
         for bg_path in background_paths:
-            try:
-                bg_image = Image.open(bg_path)
-            except Exception:
-                continue
-            
-            bg_color = self.compute_dominant_color(bg_image, ignore_transparent=False)
-            
+            bg_color = self._bg_color_cache.get(bg_path)
+            if bg_color is None:
+                try:
+                    bg_image = Image.open(bg_path)
+                except Exception:
+                    continue
+                bg_color = self.compute_dominant_color(bg_image, ignore_transparent=False)
+                self._bg_color_cache[bg_path] = bg_color
+
             # Find background closest to complementary color (for contrast)
             distance = self._color_distance(target_color, bg_color)
             
@@ -233,32 +187,6 @@ class ImageProcessor:
                 best_distance = score
                 best_bg = bg_path
         
-        return best_bg
-
-    def find_best_background_for_project(self, no_bg_images: Iterable[Image.Image], background_paths: Sequence[str]) -> Optional[str]:
-        dominant_colors = [self.compute_dominant_color(img) for img in no_bg_images]
-        if not dominant_colors:
-            return None
-
-        avg_color = tuple(sum(c[i] for c in dominant_colors) // len(dominant_colors) for i in range(3))
-        return self._find_best_background_by_color(avg_color, background_paths)
-
-    def _find_best_background_by_color(self, target_color: Tuple[int, int, int], background_paths: Sequence[str]) -> Optional[str]:
-        best_bg = None
-        best_distance = float("inf")
-
-        for bg_path in background_paths:
-            try:
-                bg_image = Image.open(bg_path)
-                bg_color = self.compute_dominant_color(bg_image, ignore_transparent=False)
-            except Exception:
-                continue
-
-            distance = self._color_distance(target_color, bg_color)
-            if distance < best_distance:
-                best_distance = distance
-                best_bg = bg_path
-
         return best_bg
 
     # ------------------------------------------------------------------
@@ -346,7 +274,11 @@ class ImageProcessor:
     # Thumbnail cache
     # ------------------------------------------------------------------
     def get_cached_thumbnail(self, image: ImageLike, size: Tuple[int, int] = (150, 150)) -> Image.Image:
-        cache_key = (str(image) if isinstance(image, str) else str(id(image)), size)
+        if isinstance(image, str):
+            cache_key: Tuple[str, Tuple[int, int]] = (image, size)
+        else:
+            small_for_key = image.resize((8, 8), Image.Resampling.NEAREST)
+            cache_key = (hashlib.md5(small_for_key.tobytes()).hexdigest(), size)
 
         with self._cache_lock:
             thumbnail = self._thumbnail_cache.get(cache_key)

@@ -4,7 +4,7 @@ block_cipher = None
 
 # Main application files to be included in the executable
 a = Analysis(
-    ['frontend.py'],  # Main entry point
+    ['app.py'],  # Main entry point
     pathex=[],
     binaries=[],
     datas=[
@@ -12,7 +12,7 @@ a = Analysis(
         ('bg/*', 'bg')
     ],
     hiddenimports=[
-        'backend',         # Ensure backend module is included
+        'mla.backend',         # Ensure backend module is included
         'PIL',
         'PIL._tkinter_finder',
         'rembg',
@@ -37,7 +37,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,  # Use a folder structure rather than single file
-    name='vinted_seller_studio',
+    name='marketplace_listing_assistant',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -75,7 +75,7 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='vinted_seller_studio',
+    name='marketplace_listing_assistant',
 )
 
 # Add the external files to the distribution folder at build time
@@ -85,7 +85,7 @@ import shutil
 
 # Function to copy external files to the dist folder
 def copy_external_files():
-    dist_dir = os.path.join('dist', 'vinted_seller_studio')
+    dist_dir = os.path.join('dist', 'marketplace_listing_assistant')
     
     # Create distribution directory if it doesn't exist
     if not os.path.exists(dist_dir):

@@ -1,4 +1,4 @@
-# frontend.py
+# mla/ui.py
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -143,54 +143,6 @@ class App(ttk.Window):
         cfg = self.button_styles.get(variant, self.button_styles["secondary"])
         return {"style": cfg["style"], "bootstyle": cfg["bootstyle"]}
 
-    def _create_debounced_handler(self, callback, delay=300):
-        """
-        Create a debounced event handler that delays execution.
-        
-        Args:
-            callback: Function to call after delay
-            delay: Delay in milliseconds
-            
-        Returns:
-            Debounced handler function
-        """
-        timer = [None]
-        
-        def debounced_handler(event=None):
-            # Cancel previous timer
-            if timer[0] is not None:
-                self.after_cancel(timer[0])
-            
-            # Schedule new timer
-            timer[0] = self.after(delay, lambda: callback(event))
-        
-        return debounced_handler
-
-    def _is_widget_visible(self, widget, canvas):
-        """
-        Check if a widget is visible in the canvas viewport.
-        
-        Args:
-            widget: Widget to check
-            canvas: Canvas containing the widget
-            
-        Returns:
-            bool: True if widget is visible
-        """
-        try:
-            # Get canvas viewport
-            canvas_top = canvas.canvasy(0)
-            canvas_bottom = canvas.canvasy(canvas.winfo_height())
-            
-            # Get widget position
-            widget_y = widget.winfo_y()
-            widget_height = widget.winfo_reqheight()
-            
-            # Check if widget is in viewport
-            return not (widget_y + widget_height < canvas_top or widget_y > canvas_bottom)
-        except:
-            return True  # Default to visible if can't determine
-
     # ====================== WINDOW LIFECYCLE ======================
     def _on_app_close(self):
         """Handle application closing: cleanup and destroy."""
@@ -329,36 +281,6 @@ class App(ttk.Window):
             command=self.open_editor_window,
             **self._button_options("link"),
         ).grid(row=0, column=4, sticky="e", padx=(10, 0))
-
-    def _setup_scrollable_canvas(self, parent, padding="0", height=None):
-        """
-        Creates a scrollable canvas with frame and scrollbar.
-        
-        Args:
-            parent: Parent widget
-            padding: Padding for the internal frame
-            height: Optional fixed height for the canvas
-            
-        Returns:
-            tuple: (canvas, scrollbar, frame, frame_id)
-        """
-        canvas = tk.Canvas(parent, borderwidth=0, highlightthickness=0)
-        if height:
-            canvas.configure(height=height)
-            
-        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        frame = ttk.Frame(canvas, padding=padding)
-        frame_id = canvas.create_window((0, 0), window=frame, anchor="nw")
-        
-        # Bind events for scrolling and resizing
-        frame.bind("<Configure>", lambda e: self._on_frame_configure(canvas))
-        canvas.bind("<Configure>", lambda e: self._on_canvas_configure(canvas, frame_id))
-        canvas.bind("<Enter>", lambda e: self._bind_mousewheel(canvas))
-        canvas.bind("<Leave>", lambda e: self._unbind_mousewheel())
-        
-        return canvas, scrollbar, frame, frame_id
 
     def _create_left_panel(self, parent):
         """Create the left control panel with form fields."""
@@ -999,6 +921,56 @@ class App(ttk.Window):
         listbox.update_idletasks()
         return added_items
 
+    # ====================== CHECKBOX FILTER HELPER ======================
+    def _filter_checkbutton_display(self, checkbuttons, search_var, container, canvas,
+                                     event=None, search_entry=None, key_fn=None,
+                                     widget_fn=None, columns=1):
+        """Filter checkbuttons by search text, showing/hiding them in a grid.
+
+        Args:
+            checkbuttons: dict mapping key -> Checkbutton widget
+            search_var: StringVar with the current search text
+            container: parent frame holding the checkbuttons
+            canvas: scrollable canvas to update after layout change
+            event: if None the initial call shows everything
+            search_entry: optional Entry widget used for placeholder detection
+            key_fn: optional callable(key) -> str for custom match text
+            widget_fn: optional callable(cb) -> widget to grid/forget (default: cb itself)
+            columns: number of grid columns (default 1)
+        """
+        search_term = search_var.get().lower().strip()
+        placeholder = self.lang.get("search_placeholder", "Search...").lower()
+
+        is_placeholder = (
+            search_entry is not None
+            and search_term == placeholder
+            and search_entry.cget("foreground") == "grey"
+        )
+        show_all = not search_term or is_placeholder or event is None
+
+        row, col = 0, 0
+        visible = 0
+        for key, cb in checkbuttons.items():
+            match_text = key_fn(key) if key_fn else key.lower()
+            target = widget_fn(cb) if widget_fn else cb
+            if show_all or search_term in match_text:
+                target.grid(row=row, column=col, sticky="w", padx=2 if columns > 1 else 0, pady=1)
+                col = (col + 1) % columns
+                if col == 0:
+                    row += 1
+                visible += 1
+            else:
+                target.grid_forget()
+
+        if columns > 1:
+            num_cols_needed = 1 if visible <= row + 1 else columns
+            for i in range(columns):
+                container.grid_columnconfigure(i, weight=(1 if i < num_cols_needed else 0))
+
+        container.update_idletasks()
+        self._update_canvas_scrollregion(canvas)
+        canvas.yview_moveto(0)
+
     # ====================== TAG & COLOR METHODS ======================
     def _create_tag_checkboxes(self):
         """Create checkboxes for each known tag."""
@@ -1040,29 +1012,11 @@ class App(ttk.Window):
         """Filter tag checkboxes based on search text."""
         if not hasattr(self, 'tag_search_entry'):
             return
-            
-        search_term = self.tag_search_var.get().lower().strip()
-        placeholder = self.lang.get("search_placeholder", "Search...").lower()
-        
-        # Check if text is placeholder or empty
-        is_placeholder = search_term == placeholder.lower() and self.tag_search_entry.cget('foreground') == "grey"
-        show_all = not search_term or is_placeholder
-        row_num = 0
-        
-        # Always show all tags on initial load
-        if event is None:
-            show_all = True
-            
-        for tag, cb in self.tag_checkbuttons.items():
-            if show_all or search_term in tag.lower():
-                cb.grid(row=row_num, column=0, sticky="w", pady=1)
-                row_num += 1
-            else:
-                cb.grid_forget()
-                
-        self.tags_check_container.update_idletasks()
-        self._update_canvas_scrollregion(self.tags_canvas)
-        self.tags_canvas.yview_moveto(0)
+        self._filter_checkbutton_display(
+            self.tag_checkbuttons, self.tag_search_var,
+            self.tags_check_container, self.tags_canvas,
+            event=event, search_entry=self.tag_search_entry,
+        )
 
     def _on_tag_checkbox_changed(self):
         """Handle tag checkbox state change."""
@@ -1115,33 +1069,13 @@ class App(ttk.Window):
         """Filter color checkboxes based on search text."""
         if not hasattr(self, 'color_search_entry'):
             return
-            
-        search_term = self.color_search_var.get().lower().strip()
-        placeholder = self.lang.get("search_placeholder", "Search...").lower()
-        
-        # Check if text is placeholder or empty
-        is_placeholder = search_term == placeholder.lower() and self.color_search_entry.cget('foreground') == "grey"
-        show_all = not search_term or is_placeholder
-        row_num = 0
-        
-        # Always show all colors on initial load
-        if event is None:
-            show_all = True
-            
-        for color, cb in self.color_checkbuttons.items():
-            display_name = color.replace(" color", "").lower()
-            if show_all or search_term in display_name:
-                # Show parent frame containing checkbox and swatch
-                parent_frame = cb.master
-                parent_frame.grid(row=row_num, column=0, sticky="ew", pady=1)
-                row_num += 1
-            else:
-                # Hide parent frame
-                cb.master.grid_forget()
-                
-        self.colors_check_container.update_idletasks()
-        self._update_canvas_scrollregion(self.colors_canvas)
-        self.colors_canvas.yview_moveto(0)
+        self._filter_checkbutton_display(
+            self.color_checkbuttons, self.color_search_var,
+            self.colors_check_container, self.colors_canvas,
+            event=event, search_entry=self.color_search_entry,
+            key_fn=lambda k: k.replace(" color", "").lower(),
+            widget_fn=lambda cb: cb.master,
+        )
 
     def _on_color_checkbox_changed(self):
         """Handle color checkbox state change."""
@@ -2333,7 +2267,7 @@ class App(ttk.Window):
         try:
             desc_tab_id = self.notebook.tabs()[-1]
             self.notebook.select(desc_tab_id)
-        except:
+        except Exception:
             pass
 
     def ui_copy_description(self):
@@ -2705,36 +2639,11 @@ class App(ttk.Window):
 
     def _editor_filter_type_tags(self, event=None):
         """Filter default tag checkboxes based on search text."""
-        search_term = self.editor_type_tag_search_var.get().lower().strip()
-        placeholder = self.lang.get("search_placeholder", "Search...").lower()
-        
-        # Simplified check for showing all tags
-        # The issue was in the complex search_entry detection that wasn't reliable
-        show_all = (search_term == "" or search_term == placeholder or event is None)
-        
-        # Arrange visible checkboxes in a grid
-        row, col = 0, 0
-        cols = 2
-        visible_count = 0
-        
-        for tag, cb in self.editor_type_tag_checkbuttons.items():
-            if show_all or search_term in tag.lower():
-                cb.grid(row=row, column=col, sticky="w", padx=2, pady=1)
-                col = (col + 1) % cols
-                if col == 0:
-                    row += 1
-                visible_count += 1
-            else:
-                cb.grid_forget()
-                
-        # Adjust column weights
-        num_cols_needed = 1 if visible_count <= row + 1 else cols
-        for i in range(cols):
-            self.editor_default_tags_frame.grid_columnconfigure(i, weight=(1 if i < num_cols_needed else 0))
-            
-        self.editor_default_tags_frame.update_idletasks()
-        self._update_canvas_scrollregion(self.editor_type_tags_canvas)
-        self.editor_type_tags_canvas.yview_moveto(0)
+        self._filter_checkbutton_display(
+            self.editor_type_tag_checkbuttons, self.editor_type_tag_search_var,
+            self.editor_default_tags_frame, self.editor_type_tags_canvas,
+            event=event, columns=2,
+        )
 
     def _editor_add_update_type(self):
         """Add or update a clothing type from editor values."""

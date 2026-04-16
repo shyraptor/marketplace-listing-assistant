@@ -1,0 +1,4 @@
+Pillow>=10.0.0
+rembg>=2.0.0
+ttkbootstrap>=1.10.0
+pyperclip>=1.8.0
