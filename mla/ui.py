@@ -237,11 +237,15 @@ class App(ttk.Window):
 
         # Padding/font applied to ttkbootstrap's bootstyle-generated style names.
         # These take effect at widget creation when the button has bootstyle=X.
-        style.configure("primary.TButton",         font=("Segoe UI Semibold", 10), padding=(14, 8))
-        style.configure("primary.Outline.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6))
+        # Outline variants get background=card so they blend with the toolbar
+        # instead of rendering as a darker surface-colored strip.
+        style.configure("primary.TButton",         font=("Segoe UI Semibold", 10), padding=(16, 9))
+        style.configure("primary.Outline.TButton", font=("Segoe UI Semibold", 10), padding=(10, 6),
+                        background=self.palette["card"])
         style.configure("secondary.TButton",       font=("Segoe UI", 10),          padding=(10, 6))
         style.configure("success.TButton",         font=("Segoe UI Semibold", 10), padding=(12, 7))
-        style.configure("danger.Outline.TButton",  font=("Segoe UI Semibold", 10), padding=(10, 6))
+        style.configure("danger.Outline.TButton",  font=("Segoe UI Semibold", 10), padding=(10, 6),
+                        background=self.palette["card"])
         style.configure("Link.TButton",            font=("Segoe UI", 10),          padding=(8, 6),
                         background=self.palette["card"])
 
@@ -904,31 +908,31 @@ class App(ttk.Window):
         rotation_frame = ttk.Frame(adj_frame, style=self.card_frame_style)
         rotation_frame.grid(row=row, column=1, sticky="w", padx=5, pady=2)
         
-        # Rotation angle display
+        # Rotation: icon buttons flanking the angle readout for a compact row.
+        ttk.Button(
+            rotation_frame,
+            text="↺",
+            command=self._rotate_left,
+            width=3,
+            **self._button_options("secondary"),
+        ).grid(row=0, column=0, padx=2)
+
         self.rotation_angle_var = tk.StringVar(value="0 deg")
         self.rotation_label = ttk.Label(
             rotation_frame,
             textvariable=self.rotation_angle_var,
             width=7,
+            anchor="center",
             font=("Segoe UI Semibold", 10),
             foreground=self.palette["accent"],
         )
-        self.rotation_label.grid(row=0, column=0, padx=(0, 10))
-        
-        # Rotation buttons
+        self.rotation_label.grid(row=0, column=1, padx=6)
+
         ttk.Button(
             rotation_frame,
-            text="Rotate Left", 
-            command=self._rotate_left,
-            width=12,
-            **self._button_options("secondary"),
-        ).grid(row=0, column=1, padx=2)
-        
-        ttk.Button(
-            rotation_frame,
-            text="Rotate Right", 
+            text="↻",
             command=self._rotate_right,
-            width=12,
+            width=3,
             **self._button_options("secondary"),
         ).grid(row=0, column=2, padx=2)
 
@@ -1595,7 +1599,11 @@ class App(ttk.Window):
                 "Use “+ Images” or “Zip” in the toolbar to get started.",
             )
             empty_wrap = ttk.Frame(self.img_display_frame, style=self.panel_style)
-            empty_wrap.grid(row=0, column=0, padx=40, pady=80, sticky="n")
+            empty_wrap.grid(row=0, column=0, padx=40, pady=120, sticky="n")
+            ttk.Label(
+                empty_wrap, text="🖼️", style="EmptyTitle.TLabel",
+                font=("Segoe UI", 44),
+            ).pack(pady=(0, 16))
             ttk.Label(empty_wrap, text=msg, style="EmptyTitle.TLabel").pack(pady=(0, 6))
             ttk.Label(empty_wrap, text=hint, style="EmptyHint.TLabel").pack()
             self.selected_processed_index = None
